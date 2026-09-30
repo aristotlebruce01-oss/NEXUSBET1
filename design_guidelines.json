@@ -1,0 +1,102 @@
+{
+  "project_name": "NexusBet",
+  "app_type": "hybrid_fullstack",
+  "theme": {
+    "mode": "dark",
+    "style": "Dark Cyberpunk with Deep Purple Black, Electric Cyan, and Golden Win Accents",
+    "colors": {
+      "background": "#0F0C20",
+      "surface": "#171330",
+      "surface_elevated": "#1E183E",
+      "surface_border": "rgba(0, 229, 255, 0.18)",
+      "primary_cyan": "#00E5FF",
+      "primary_cyan_hover": "#33EBFF",
+      "primary_cyan_glow": "rgba(0, 229, 255, 0.35)",
+      "magenta_accent": "#FF007A",
+      "gold_accent": "#FFD700",
+      "gold_glow": "rgba(255, 215, 0, 0.5)",
+      "text_primary": "#F0EEF9",
+      "text_secondary": "#A29DBE",
+      "text_muted": "#6E688D",
+      "success_green": "#00FF87",
+      "danger_red": "#FF3366"
+    }
+  },
+  "typography": {
+    "heading_font": "Unbounded, 'Chivo', sans-serif",
+    "body_font": "Inter, 'DM Sans', sans-serif",
+    "mono_font": "'JetBrains Mono', 'Source Code Pro', monospace",
+    "hierarchy": {
+      "h1": "text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg font-semibold",
+      "body": "text-sm sm:text-base text-[#A29DBE]",
+      "odds_text": "font-mono font-bold text-sm tracking-wider"
+    }
+  },
+  "layout_and_grid": {
+    "header": "Sticky glassmorphic top header with z-50 (backdrop-blur-md bg-[#0F0C20]/85 border-b border-[#00E5FF]/20)",
+    "main_container": "max-w-7xl mx-screen px-4 sm:px-6 lg:px-8 py-6 space-y-8",
+    "sports_grid": "grid grid-cols-1 lg:grid-cols-3 gap-6",
+    "casino_grid": "grid grid-cols-1 md:grid-cols-3 gap-6",
+    "bet_slip": "Fixed right drawer on desktop / slide-up modal on mobile with sticky place-bet footer"
+  },
+  "key_features_and_flows": [
+    "Authentication (Email + Password signup and quick demo login presets)",
+    "Virtual Coin Wallet (Play money balance display with bonus claim option)",
+    "Sports Betting Page (Live matches, simulated dynamic odds pulsation in cyan/green/red)",
+    "Dynamic Bet Slip (Multi-selection, stake input, potential payout calculation, single and parlay options)",
+    "Casino Games Suite (Cyber Slots reel, Cyber Dice risk slider, Cyber Roulette wheel)",
+    "My Bets History Tab (Active, Won, Lost bets with simulated cashout capabilities)",
+    "Full-Screen Golden Trophy Overlay (Triggers on winning bets with site name NexusBet, celebratory animations, win amount)",
+    "Admin Demo Event Manager (Create custom sports matches, manipulate odds live, finish events)"
+  ],
+  "visual_enhancers": {
+    "glow_effects": "box-shadow: 0 0 15px rgba(0, 229, 255, 0.3) for active buttons and odds pills",
+    "win_overlay_effects": "Full screen semi-transparent radial gradient backdrop with shimmering gold particle trophy, animated glowing text 'NEXUSBET WINNER'",
+    "odds_update_flash": "Brief green border/bg flash on odds increase, red border/bg flash on odds decrease",
+    "borders": "1px solid rgba(0, 229, 255, 0.2) with subtle rounded-xl corners"
+  },
+  "component_path": "/app/frontend/src/components",
+  "image_urls": {
+    "casino_bg": "https://images.pexels.com/photos/7594140/pexels-photo-7594140.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "cyber_arcade": "https://images.unsplash.com/photo-1785217454610-848426570f16?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHw0fHxjeWJlcnB1bmslMjBzcG9ydHMlMjBiZXR0aW5nJTIwY2FzaW5vJTIwcG9kaXVtJTIwdHJvcGh5JTIwbmVvbnxlbnwwfHx8fDE3ODk2MzgyMzh8MA&ixlib=rb-4.1.0&q=85",
+    "slots_neon": "https://images.unsplash.com/photo-1604028296525-8304e1a4969f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHwxfHxjeWJlcnB1bmslMjBzcG9ydHMlMjBiZXR0aW5nJTIwY2FzaW5vJTIwcG9kaXVtJTIwdHJvcGh5JTIwbmVvbnxlbnwwfHx8fDE3ODk2MzgyMzh8MA&ixlib=rb-4.1.0&q=85"
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You MUST NOT apply universal transition (e.g. transition: all). Add specific transitions for transform and opacity.",
+    "Do not center-align the app container text alignment globally.",
+    "All interactive and key informational elements MUST include a data-testid attribute in kebab-case format.",
+    "Ensure dark cyberpunk theme is consistently implemented across all screens.",
+    "Always test inputs, modals, bet placement, casino triggers, and trophy overlay using proper data-testid attributes."
+  ],
+  "testing_instructions": {
+    "required_data_testids": [
+      "navbar-brand-nexusbet",
+      "navbar-wallet-balance",
+      "navbar-login-button",
+      "navbar-signup-button",
+      "nav-sports-tab",
+      "nav-casino-tab",
+      "nav-my-bets-tab",
+      "nav-admin-tab",
+      "sports-match-card-{match_id}",
+      "odds-button-{match_id}-{outcome}",
+      "bet-slip-drawer",
+      "bet-slip-stake-input",
+      "bet-slip-place-bet-button",
+      "bet-slip-potential-payout",
+      "casino-slot-spin-button",
+      "casino-dice-roll-button",
+      "casino-roulette-spin-button",
+      "my-bets-card-{bet_id}",
+      "trophy-win-overlay",
+      "trophy-overlay-close-button",
+      "admin-create-event-button",
+      "auth-modal-email-input",
+      "auth-modal-password-input",
+      "auth-modal-submit-button"
+    ]
+  }
+}
