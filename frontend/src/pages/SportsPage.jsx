@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Radio, RefreshCw, Clock3, Trophy, ChevronDown, ChevronUp, Copy, Ticket, X, WalletCards, Shield, MapPin } from "lucide-react";
+import { Radio, RefreshCw, Clock3, Trophy, ChevronDown, ChevronUp, Copy, Ticket, X, WalletCards, Shield, MapPin, Search } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -19,7 +19,7 @@ const HERO = [
   "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=1100&q=85",
 ];
 
-export default function SportsPage({ activeSection="home" }) {
+export default function SportsPage({ activeSection="home", teamSearch="" }) {
   const { user, setBalance, reload } = useAuth();
   const [events,setEvents]=useState([]), [virtual,setVirtual]=useState([]), [loading,setLoading]=useState(true), [filter,setFilter]=useState("all"), [now,setNow]=useState(Date.now());
   const [leagues,setLeagues]=useState([]), [leagueOpen,setLeagueOpen]=useState(null);
@@ -53,7 +53,10 @@ export default function SportsPage({ activeSection="home" }) {
   const isLive=e=>String(e.phase||e.status||"").toLowerCase().includes("live")||e.is_live===true;
   const todayKey=new Date().toISOString().slice(0,10); const isToday=e=>String(e.start_time||e.kickoff_at||e.kickoff||e.created_at||"").slice(0,10)===todayKey;
   const sectionEvents=normalized==="live"?events.filter(isLive):normalized==="today-matches"?events.filter(isToday):events;
-  const visible=(filter==="all"?sectionEvents:sectionEvents.filter(e=>e.sport===filter));
+  const searchTerm=String(teamSearch||"").trim().toLowerCase();
+  const matchesTeamSearch=(event)=>!searchTerm||`${event.home||""} ${event.away||""}`.toLowerCase().includes(searchTerm);
+  const visible=(filter==="all"?sectionEvents:sectionEvents.filter(e=>e.sport===filter)).filter(matchesTeamSearch);
+  const visibleVirtual=virtual.filter(matchesTeamSearch);
   const toggleSelection=(event,market,selection)=>{
     const odds=market==="match_result"?pickOdds(event,selection):MARKET_ODDS[selection]||0;
     if(!odds)return toast.error("Odds unavailable for this selection");
@@ -78,7 +81,7 @@ export default function SportsPage({ activeSection="home" }) {
   return <div className="space-y-6">
     <section className="nx-card overflow-hidden"><div className="relative h-64 sm:h-80"><div className="absolute inset-0 grid grid-cols-3">{HERO.map((src,i)=><img key={src} src={src} alt="NexusBet soccer player" className={`w-full h-full object-cover transition-opacity duration-1000 ${i===hero?"opacity-100":"opacity-55"}`}/>)}</div><div className="absolute inset-0 bg-gradient-to-r from-[#0F0C20]/90 via-[#0F0C20]/35 to-[#0F0C20]/80"/><div className="absolute inset-0 flex items-end p-6 sm:p-10"><div><span className="text-xs font-black uppercase tracking-[.22em] text-[#00E5FF]">NexusBet sports hub</span><h1 className="text-3xl sm:text-5xl font-black mt-2">My Bet · Live Sports · Virtual Football</h1><p className="text-sm text-[#A29DBE] mt-2">Select your matches first. Nothing is staked until you press Place Bet.</p></div></div></div></section>
     <div className="flex flex-wrap gap-2">{sports.map(s=><button key={s} onClick={()=>setFilter(s)} className={`rounded-full px-4 py-2 text-xs font-bold border ${filter===s?"bg-[#00E5FF] text-black border-[#00E5FF]":"border-white/10 text-[#A29DBE]"}`}>{s==="all"?"All sports":s}</button>)}</div>
-    {loading?<div className="nx-card p-8 text-center">Loading matches...</div>:<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{visible.map(e=><Card key={e.id} event={e}/>)}{virtual.map(e=><Card key={e.id} event={{...e,sport:"Virtual Football"}} isVirtual/>)}</div>}
+    {loading?<div className="nx-card p-8 text-center">Loading matches...</div>:<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{visible.map(e=><Card key={e.id} event={e}/>)}{visibleVirtual.map(e=><Card key={e.id} event={{...e,sport:"Virtual Football"}} isVirtual/>)}{!visible.length&&!visibleVirtual.length&&<div className="nx-card p-8 text-center lg:col-span-2"><Search size={22} className="mx-auto text-[#00E5FF] mb-2"/><p className="font-bold">No teams found</p><p className="text-xs text-[#A29DBE] mt-1">Try another team name.</p></div>}</div>}
     <div className="fixed right-4 bottom-4 z-40 w-[min(430px,calc(100vw-2rem))]">
       <div className="nx-card border-2 border-[#00E5FF]/50 shadow-2xl">
         <button type="button" onClick={()=>setMyBetOpen(v=>!v)} aria-expanded={myBetOpen} className="w-full p-4 flex items-center justify-between text-left hover:bg-white/[0.03] transition-colors">
