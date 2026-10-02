@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 
 // Deterministic team badge: the same team name always gets the same badge,
 // while different names are spread across multiple shapes and colour families.
-export default function TeamLogo({ name, size = 34 }) {
+export default function TeamLogo({ name, size = 34, logoUrl = "" }) {
+  const [logoFailed, setLogoFailed] = useState(false);
   const text = String(name || "Team").trim() || "Team";
   let h1 = 2166136261;
   let h2 = 16777619;
@@ -44,5 +45,8 @@ export default function TeamLogo({ name, size = 34 }) {
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="hsl(${hue} 82% 52%)"/><stop offset="1" stop-color="hsl(${hue2} 78% 38%)"/></linearGradient></defs>${shapeMarkup}<circle cx="48" cy="48" r="17" fill="#06101C" fill-opacity=".30" stroke="white" stroke-opacity=".45" stroke-width="2"/><text x="48" y="54" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" font-weight="900" fill="white" letter-spacing="1">${letters}</text></svg>`;
 
+  if (logoUrl && !logoFailed) {
+    return <img src={logoUrl} alt={`${text} official crest`} width={size} height={size} className="shrink-0 object-contain drop-shadow-lg" onError={() => setLogoFailed(true)} />;
+  }
   return <img src={`data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`} alt={`${text} logo`} width={size} height={size} className="shrink-0 drop-shadow-lg" />;
 }

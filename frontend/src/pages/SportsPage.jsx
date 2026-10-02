@@ -7,8 +7,55 @@ import { useAuth } from "@/context/AuthContext";
 const money = (v) => `₵${Number(v || 0).toFixed(2)}`;
 const pickOdds = (e, s) => Number(e?.odds?.[s] ?? e?.[`odds_${s}`] ?? 0);
 const scoreOf = (e) => ({ home:Number(e?.score?.home ?? e?.home_score ?? 0), away:Number(e?.score?.away ?? e?.away_score ?? 0) });
-const MARKET_ODDS = { dc_team_1:1.25, dc_team_2:1.45, "0-0":6, "1-0":5.5, "0-1":6.5, "1-1":5, "2-0":7, "2-1":8, win1:7, win2:7.5 };
-const marketLabel = (m,s) => m === "match_result" ? ({home:"Home",draw:"Draw",away:"Away"}[s]||s) : m === "double_chance" ? (s === "dc_team_1" ? "DC Team 1 / Draw" : "DC Team 2 / Draw") : m === "correct_score" ? `Correct score ${s}` : `HT Draw / ${s === "win1" ? "Win 1" : "Win 2"}`;
+const MARKET_ODDS = {
+  dc_team_1: 1.25,
+  dc_team_2: 1.45,
+
+  "0-0": 6,
+  "1-0": 5.5,
+  "0-1": 6.5,
+  "1-1": 5,
+  "2-0": 7,
+  "0-2": 8,
+  "2-1": 8,
+  "1-2": 8.5,
+  "2-2": 10,
+  "3-0": 11,
+  "0-3": 13,
+  "3-1": 12,
+  "1-3": 14,
+  "3-2": 16,
+  "2-3": 17,
+  "3-3": 24,
+  "4-0": 18,
+  "0-4": 22,
+  "4-1": 20,
+  "1-4": 26,
+  "4-2": 24,
+  "2-4": 30,
+  "4-3": 32,
+  "3-4": 36,
+  "4-4": 55,
+
+  "over_0.5": 1.15,
+  "under_0.5": 5.5,
+  "over_1.5": 1.48,
+  "under_1.5": 2.55,
+  "over_2.5": 2.05,
+  "under_2.5": 1.78,
+  "over_3.5": 3.05,
+  "under_3.5": 1.36,
+  "over_4.5": 4.4,
+  "under_4.5": 1.18,
+  "over_5.5": 6.5,
+  "under_5.5": 1.1,
+
+  yes: 1.72,
+  no: 1.92,
+  win1: 7,
+  win2: 7.5
+};
+const marketLabel = (m,s) => m === "match_result" ? ({home:"Home",draw:"Draw",away:"Away"}[s]||s) : m === "double_chance" ? (s === "dc_team_1" ? "DC Team 1 / Draw" : "DC Team 2 / Draw") : m === "correct_score" ? `Correct score ${s}` : m === "goals_over_under" ? (s.startsWith("over_") ? `Over ${s.slice(5)}` : `Under ${s.slice(6)}`) : m === "both_teams_score" ? (s === "yes" ? "GG Yes" : "NG No") : `HT Draw / ${s === "win1" ? "Win 1" : "Win 2"}`;
 
 import TeamLogo from "@/components/TeamLogo";
 import LeagueCrest from "../components/LeagueCrest";
@@ -52,11 +99,11 @@ export default function SportsPage({ activeSection="home", teamSearch="" }) {
   const normalized=activeSection==="live-score-update"?"live":activeSection;
   const isLive=e=>String(e.phase||e.status||"").toLowerCase().includes("live")||e.is_live===true;
   const todayKey=new Date().toISOString().slice(0,10); const isToday=e=>String(e.start_time||e.kickoff_at||e.kickoff||e.created_at||"").slice(0,10)===todayKey;
-  const sectionEvents=normalized==="live"?events.filter(isLive):normalized==="today-matches"?events.filter(isToday):events;
+  const sectionEvents=normalized==="live"?events.filter(isLive):normalized==="today-matches"?events.filter(e=>isToday(e)&&String(e.status||"").toLowerCase()!=="finished"):events.filter(e=>String(e.status||"").toLowerCase()!=="finished");
   const searchTerm=String(teamSearch||"").trim().toLowerCase();
   const matchesTeamSearch=(event)=>!searchTerm||`${event.home||""} ${event.away||""}`.toLowerCase().includes(searchTerm);
   const visible=(filter==="all"?sectionEvents:sectionEvents.filter(e=>e.sport===filter)).filter(matchesTeamSearch);
-  const visibleVirtual=virtual.filter(matchesTeamSearch);
+  const visibleVirtual=(normalized==="live"?virtual.filter(isLive):virtual.filter(e=>String(e.status||"").toLowerCase()!=="finished")).filter(matchesTeamSearch);
   const toggleSelection=(event,market,selection)=>{
     const odds=market==="match_result"?pickOdds(event,selection):MARKET_ODDS[selection]||0;
     if(!odds)return toast.error("Odds unavailable for this selection");
@@ -69,9 +116,9 @@ export default function SportsPage({ activeSection="home", teamSearch="" }) {
   const Market=({event,market,selection,label,odds})=><button type="button" onClick={()=>toggleSelection(event,market,selection)} className={`rounded-lg p-2 text-center text-xs border ${selections.find(x=>x.event_id===event.id)?.selection===selection?"bg-[#00E5FF] text-black border-[#00E5FF]":"bg-[#221c46] border-white/10"}`}><div className="opacity-80">{label}</div><b>{Number(odds).toFixed(2)}</b></button>;
   const Card=({event,isVirtual=false})=>{const sc=scoreOf(event);const odds=event.odds||{};const home=Number(odds.home ?? (pickOdds(event,"home") || 1.85)),draw=Number(odds.draw ?? (pickOdds(event,"draw") || 3.4)),away=Number(odds.away ?? (pickOdds(event,"away") || 3.75));return <div className="nx-card p-4">
     <div className="flex items-center justify-between"><span className="text-[10px] font-black uppercase tracking-wider text-[#00E5FF]">{event.sport||"Football"}</span><span className="text-[10px] text-[#A29DBE]"><Radio size={11} className="inline mr-1"/>{event.phase||event.status||"scheduled"}{event.status==="live"?` · ${event.minute??0}'`:""}</span></div>
-    <button type="button" className="w-full text-left mt-3" onClick={()=>setExpanded(c=>({...c,[event.id]:!c[event.id]}))}><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2"><div className="flex items-center gap-2"><TeamLogo name={event.home}/><span className="font-semibold text-sm">{event.home}</span></div><span className="text-[#FFD700] font-black">{sc.home}:{sc.away}</span><div className="flex items-center justify-end gap-2"><span className="font-semibold text-sm text-right">{event.away}</span><TeamLogo name={event.away}/></div></div><p className="text-xs text-[#6E688D] mt-2">{event.league||"League"} · {isVirtual?`${event.minute??0}'`:"live refresh"}</p></button>
+    <button type="button" className="w-full text-left mt-3" onClick={()=>setExpanded(c=>({...c,[event.id]:!c[event.id]}))}><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2"><div className="flex items-center gap-2"><TeamLogo name={event.home} logoUrl={event.home_logo_url}/><span className="font-semibold text-sm">{event.home}</span></div><span className="text-[#FFD700] font-black">{event.status==="live" ? `${sc.home}:${sc.away}` : "VS"}</span><div className="flex items-center justify-end gap-2"><span className="font-semibold text-sm text-right">{event.away}</span><TeamLogo name={event.away} logoUrl={event.away_logo_url}/></div></div><p className="text-xs text-[#6E688D] mt-2">{event.league||"League"} · {event.status==="live" ? `${event.minute??0}' live` : event.kickoff_at ? new Date(event.kickoff_at).toLocaleString([], {weekday:"short", hour:"2-digit", minute:"2-digit"}) : "Scheduled"}</p></button>
     <div className="grid grid-cols-3 gap-2 mt-3"><Market event={event} market="match_result" selection="home" label="Home" odds={home}/><Market event={event} market="match_result" selection="draw" label="Draw" odds={draw}/><Market event={event} market="match_result" selection="away" label="Away" odds={away}/></div>
-    {expanded[event.id]&&<div className="mt-4 border-t border-white/10 pt-4 space-y-3"><div className="text-xs font-black uppercase text-[#00E5FF]">Double Chance</div><div className="grid grid-cols-2 gap-2"><Market event={event} market="double_chance" selection="dc_team_1" label="DC Team 1 / Draw" odds={1.25}/><Market event={event} market="double_chance" selection="dc_team_2" label="DC Team 2 / Draw" odds={1.45}/></div><div className="text-xs font-black uppercase text-[#00E5FF]">Correct Score</div><div className="grid grid-cols-3 gap-2">{["0-0","1-0","0-1","1-1","2-0","2-1"].map(s=><Market key={s} event={event} market="correct_score" selection={s} label={s} odds={MARKET_ODDS[s]}/>)}</div><div className="text-xs font-black uppercase text-[#00E5FF]">HT / FT</div><div className="grid grid-cols-2 gap-2"><Market event={event} market="ht_draw_ft" selection="win1" label="HT Draw / Win 1" odds={7}/><Market event={event} market="ht_draw_ft" selection="win2" label="HT Draw / Win 2" odds={7.5}/></div></div>}
+    {expanded[event.id]&&<div className="mt-4 border-t border-white/10 pt-4 space-y-4"><div><div className="text-xs font-black uppercase text-[#00E5FF] mb-2">Double Chance</div><div className="grid grid-cols-2 gap-2"><Market event={event} market="double_chance" selection="dc_team_1" label="DC Team 1 / Draw" odds={1.25}/><Market event={event} market="double_chance" selection="dc_team_2" label="DC Team 2 / Draw" odds={1.45}/></div></div><div><div className="text-xs font-black uppercase text-[#00E5FF] mb-2">Over / Under Goals</div><div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{["0.5","1.5","2.5","3.5","4.5","5.5"].flatMap(line=>[<Market key={`o${line}`} event={event} market="goals_over_under" selection={`over_${line}`} label={`Over ${line}`} odds={MARKET_ODDS[`over_${line}`]}/>,<Market key={`u${line}`} event={event} market="goals_over_under" selection={`under_${line}`} label={`Under ${line}`} odds={MARKET_ODDS[`under_${line}`]}/>])}</div></div><div><div className="text-xs font-black uppercase text-[#00E5FF] mb-2">GG / NG</div><div className="grid grid-cols-2 gap-2"><Market event={event} market="both_teams_score" selection="yes" label="GG Yes" odds={1.72}/><Market event={event} market="both_teams_score" selection="no" label="NG No" odds={1.92}/></div></div><div><div className="text-xs font-black uppercase text-[#00E5FF] mb-2">Correct Score</div><div className="grid grid-cols-3 sm:grid-cols-4 gap-2">{Object.keys(MARKET_ODDS).filter(s=>/^\d-\d$/.test(s)).map(s=><Market key={s} event={event} market="correct_score" selection={s} label={s} odds={MARKET_ODDS[s]}/>)}</div></div><div><div className="text-xs font-black uppercase text-[#00E5FF] mb-2">HT / FT</div><div className="grid grid-cols-2 gap-2"><Market event={event} market="ht_draw_ft" selection="win1" label="HT Draw / Win 1" odds={7}/><Market event={event} market="ht_draw_ft" selection="win2" label="HT Draw / Win 2" odds={7.5}/></div></div></div>}
     <div className="mt-3 flex justify-between text-[11px] text-[#A29DBE]"><span><Clock3 size={12} className="inline mr-1"/>{event.status||"scheduled"}</span><button onClick={()=>setExpanded(c=>({...c,[event.id]:!c[event.id]}))} className="text-[#00E5FF]">{expanded[event.id]?<><ChevronUp size={13} className="inline"/> Hide markets</>:<><ChevronDown size={13} className="inline"/> More markets</>}</button></div>
   </div>};
   if(activeSection==="leagues") return <section className="space-y-6">

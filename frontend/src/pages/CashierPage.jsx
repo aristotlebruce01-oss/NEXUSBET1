@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowDownToLine, ArrowUpFromLine, Gift, History } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Gift, History, X } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -13,7 +13,7 @@ const METHODS = [
 ];
 
 export default function CashierPage() {
-  const { setBalance, reload } = useAuth();
+  const { user, setBalance, reload } = useAuth();
   const [status, setStatus] = useState(null);
   const [txns, setTxns] = useState([]);
   const [method, setMethod] = useState("mtn");
@@ -24,6 +24,8 @@ export default function CashierPage() {
   const [destination, setDestination] = useState("");
   const [busy, setBusy] = useState(false);
   const [withdrawRequirementError, setWithdrawRequirementError] = useState("");
+  const [withdrawReceipt, setWithdrawReceipt] = useState(null);
+  const canViewWithdrawalReceipt = ["super_admin", "admin", "sub_admin"].includes(user?.role);
 
   const load = useCallback(async () => {
     try {
@@ -89,7 +91,8 @@ export default function CashierPage() {
     try {
       const r = await api.post("/wallet/withdraw", { amount, method, phone_number: wdPhone.trim(), destination: destination.trim() });
       setBalance(r.data.balance);
-      toast.success("Withdrawal submitted");
+      setWithdrawReceipt({ amount: Number(r.data.withdrawn || amount), balance: Number(r.data.balance || 0), reference: r.data.reference || "NexusBet", status: r.data.status || "pending" });
+      toast.success("Withdrawal request submitted");
       setWdAmt(""); setWdPhone(""); setDestination("");
       await Promise.all([load(), reload()]);
     } catch (e) {
@@ -122,6 +125,23 @@ export default function CashierPage() {
               </div>
             </div>
             <div className="text-left md:text-right"><div className="text-xs text-[#A29DBE]">FREE BONUS</div><div className="text-2xl font-black text-[#00FF87]">+{fmt(bonusCap)}</div></div>
+          </div>
+        </div>
+      )}
+
+
+      {canViewWithdrawalReceipt && withdrawReceipt && (
+        <div className="fixed inset-0 z-[140] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Withdrawal receipt">
+          <div className="w-full max-w-md nx-card border border-[#00E5FF]/30 p-5 shadow-2xl">
+            <div className="flex items-center justify-between"><div><div className="text-xs uppercase tracking-wider font-black text-[#00E5FF]">Withdrawal receipt</div><h2 className="text-xl font-black mt-1">Withdrawal submitted</h2></div><button type="button" onClick={() => setWithdrawReceipt(null)} className="p-2 rounded-lg bg-white/5 text-[#A29DBE]"><X size={18}/></button></div>
+            <div className="mt-5 rounded-xl bg-[#221c46] p-4 space-y-3 text-sm">
+              <div className="flex justify-between"><span className="text-[#A29DBE]">Amount requested</span><b>{fmt(withdrawReceipt.amount)}</b></div>
+              <div className="flex justify-between"><span className="text-[#A29DBE]">Current balance</span><b>{fmt(withdrawReceipt.balance)}</b></div>
+              <div className="flex justify-between"><span className="text-[#A29DBE]">Available balance</span><b>{fmt(withdrawReceipt.balance)}</b></div>
+              <div className="flex justify-between"><span className="text-[#A29DBE]">Reference</span><b>{withdrawReceipt.reference}</b></div>
+              <div className="flex justify-between"><span className="text-[#A29DBE]">Status</span><b className="text-[#FFD700] uppercase">{withdrawReceipt.status}</b></div>
+            </div>
+            <p className="text-xs text-[#6E688D] mt-3">This receipt confirms the withdrawal request. It does not represent a payment received or add funds to the wallet.</p>
           </div>
         </div>
       )}
