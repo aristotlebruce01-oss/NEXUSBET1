@@ -6,7 +6,7 @@
 - `super_admin`: full staff control; can create/edit/remove Admins and Sub-Admins; protected from modification/deletion; sole role allowed to soft-delete historical deposit logs.
 - `admin`: can onboard/manage Sub-Admins, manage matches, review transactions, manage users and settlement payout details; cannot modify/delete Super Admins or create/promote another Admin.
 - `sub_admin`: receives a unique referral code/link, can earn 70% referral commission on approved deposits from referred users, sees a dated commission ledger, and can receive match permissions such as `events.manage`.
-- `user`: must register with a valid Admin/Sub-Admin referral code and cannot access staff demo credits.
+- `user`: must register with a valid Super-Admin/Admin/Sub-Admin referral code and cannot access staff demo credits.
 
 ### Referral system
 - Links use `window.location.origin`, so the same UI works on localhost, a LAN IP, or the production domain.

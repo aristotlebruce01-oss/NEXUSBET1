@@ -22,6 +22,53 @@ function CashierSettings() {
   return <div className="nx-card p-5"><h2 className="font-display font-bold text-lg flex items-center gap-2 mb-4"><Settings2 size={18} className="text-[#00E5FF]"/> Cashier Settings</h2><div className="grid grid-cols-2 gap-3">{[["min_deposit","Minimum Deposit","300"],["min_withdrawal","Minimum Withdrawal","3000"]].map(([key,label,min]) => <div key={key}><label className="text-xs text-[#A29DBE] uppercase tracking-wider">{label}</label><input type="number" step="0.01" min={min} value={settings[key]} onChange={e=>setSettings({...settings,[key]:e.target.value})} className="mt-1 w-full bg-[#221c46] border border-[#00E5FF]/20 rounded-xl px-3 py-2.5 text-[#F0EEF9] font-mono outline-none focus:border-[#00E5FF]"/></div>)}</div><p className="text-[11px] text-[#6E688D] mt-3">Minimums cannot be lowered below GH₵300 deposit or GH₵3,000 withdrawal.</p><button onClick={save} disabled={saving} className="nx-btn-primary w-full py-2.5 mt-4 flex items-center justify-center gap-2"><Save size={16}/>{saving ? "Saving...":"Save Settings"}</button></div>;
 }
 
+
+function ManualPaymentSettings() {
+  const [methods, setMethods] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const load = useCallback(async () => {
+    try { setMethods((await api.get("/admin/payment-methods")).data || []); }
+    catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail)); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const update = (id, key, value) => setMethods((rows) => rows.map((m) => m.id === id ? { ...m, [key]: value } : m));
+  const save = async () => {
+    setSaving(true);
+    try {
+      const payload = {};
+      methods.forEach((m) => {
+        const clean = { ...m };
+        delete clean._id;
+        payload[m.id] = clean;
+      });
+      const { data } = await api.put("/admin/payment-methods", payload);
+      setMethods(data || []);
+      toast.success("Manual payment settings saved");
+    } catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail)); }
+    finally { setSaving(false); }
+  };
+  if (!methods.length) return null;
+  return <div className="nx-card p-5 lg:col-span-2">
+    <div className="flex items-center justify-between mb-4">
+      <div><h2 className="font-display font-bold text-lg flex items-center gap-2"><Landmark size={18} className="text-[#00E5FF]"/> Manual Deposit Payment Settings</h2><p className="text-xs text-[#A29DBE] mt-1">Super Admin only. These are the receiving details shown to users on the Deposit page.</p></div>
+      <button onClick={load} className="text-[#00E5FF]"><RefreshCw size={16}/></button>
+    </div>
+    <div className="space-y-4">
+      {methods.map((m) => <div key={m.id} className="bg-[#221c46] rounded-2xl p-4">
+        <div className="flex items-center justify-between gap-3 mb-3"><div className="font-black">{m.label}</div><label className="text-xs flex items-center gap-2"><input type="checkbox" checked={Boolean(m.active)} onChange={(e)=>update(m.id,"active",e.target.checked)} /> Active</label></div>
+        {m.id === "bank_transfer_manual" ? <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {[['bank_name','Bank Name'],['account_number','Account Number'],['account_name','Account Name'],['branch','Branch'],['bank_code','Bank / Branch Code']].map(([k,l])=><div key={k}><label className="text-[10px] uppercase text-[#6E688D]">{l}</label><input value={m[k] || ""} onChange={e=>update(m.id,k,e.target.value)} className="mt-1 w-full bg-[#100d22] border border-white/10 rounded-xl px-3 py-2.5 text-sm" /></div>)}
+        </div> : <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div><label className="text-[10px] uppercase text-[#6E688D]">Receiving Number</label><input value={m.receiving_number || ""} onChange={e=>update(m.id,"receiving_number",e.target.value)} className="mt-1 w-full bg-[#100d22] border border-white/10 rounded-xl px-3 py-2.5 text-sm" /></div>
+          <div><label className="text-[10px] uppercase text-[#6E688D]">Recipient Name</label><input value={m.recipient_name || ""} onChange={e=>update(m.id,"recipient_name",e.target.value)} className="mt-1 w-full bg-[#100d22] border border-white/10 rounded-xl px-3 py-2.5 text-sm" /></div>
+        </div>}
+        <div className="mt-3"><label className="text-[10px] uppercase text-[#6E688D]">Instructions</label><textarea value={m.instructions || ""} onChange={e=>update(m.id,"instructions",e.target.value)} rows={3} className="mt-1 w-full bg-[#100d22] border border-white/10 rounded-xl px-3 py-2.5 text-sm resize-y" /></div>
+      </div>)}
+    </div>
+    <button onClick={save} disabled={saving} className="nx-btn-primary w-full mt-4 py-3 flex items-center justify-center gap-2"><Save size={16}/>{saving ? "Saving..." : "Save Manual Payment Settings"}</button>
+  </div>;
+}
+
 function ReferralPanel({ user }) {
   const [data, setData] = useState(null);
   const [commissions, setCommissions] = useState(null);
@@ -233,9 +280,12 @@ function PermissionManager() {
 }
 
 function TransactionReview() {
-  const [transactions,setTransactions]=useState([]),[loading,setLoading]=useState(false); const load=async()=>{setLoading(true);try{setTransactions((await api.get('/admin/transactions?status=pending')).data)}catch(err){toast.error(formatApiErrorDetail(err.response?.data?.detail))}finally{setLoading(false)}}; useEffect(()=>{load()},[]);
-  const review=async(id,action)=>{const reason=action==='reject'?window.prompt('Enter rejection reason:'):(window.prompt('Optional approval note:')||'');if(action==='reject'&&!reason?.trim())return;try{await api.post(`/admin/transactions/${id}/review?action=${action}&reason=${encodeURIComponent(reason||'')}`);toast.success(action==='approve'?'Transaction approved':'Transaction rejected');load()}catch(err){toast.error(formatApiErrorDetail(err.response?.data?.detail))}};
-  return <div className="nx-card p-5"><div className="flex items-center justify-between mb-4"><h2 className="font-display font-bold text-lg">Deposit & Withdrawal Review</h2><button onClick={load} disabled={loading}><RefreshCw size={16} className={loading?'animate-spin':''}/></button></div>{transactions.length===0?<p className="text-sm text-[#A29DBE]">No pending transactions.</p>:<div className="space-y-3 max-h-96 overflow-y-auto">{transactions.map(tx=><div key={tx.id} className="bg-[#221c46] rounded-xl p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">{money(tx.amount)}</p><p className="text-xs text-[#A29DBE]">{tx.user?.name||tx.user?.email||tx.user_id}</p><p className="text-[10px] text-[#6E688D]">{tx.type} · {tx.method} · {tx.reference||'no reference'}</p></div><span className="text-[10px] uppercase text-[#FFD700]">{tx.status}</span></div><div className="flex gap-2 mt-3"><button onClick={()=>review(tx.id,'approve')} className="flex-1 rounded-lg bg-[#00FF87]/10 text-[#00FF87] py-1.5 text-xs font-semibold flex items-center justify-center gap-1"><Check size={13}/>Approve</button><button onClick={()=>review(tx.id,'reject')} className="flex-1 rounded-lg bg-[#FF3366]/10 text-[#FF3366] py-1.5 text-xs font-semibold flex items-center justify-center gap-1"><X size={13}/>Reject</button></div></div>)}</div>}</div>;
+  const [transactions,setTransactions]=useState([]),[loading,setLoading]=useState(false);
+  const load=async()=>{setLoading(true);try{setTransactions((await api.get('/admin/transactions?status=pending')).data)}catch(err){toast.error(formatApiErrorDetail(err.response?.data?.detail))}finally{setLoading(false)}};
+  useEffect(()=>{load()},[]);
+  const review=async(id,action)=>{const reason=action==='reject'?window.prompt('Enter rejection reason:'):(window.prompt('Optional approval note:')||'');if(action==='reject'&&!reason?.trim())return;try{const r=await api.post(`/admin/transactions/${id}/review?action=${action}&reason=${encodeURIComponent(reason||'')}`);toast.success(action==='approve'?`Deposit approved: ${money(r.data?.credited_amount || 0)}`:'Transaction rejected');load()}catch(err){toast.error(formatApiErrorDetail(err.response?.data?.detail))}};
+  const methodLabel=(m)=>({mtn_manual:'MTN MoMo Manual',telecel_manual:'Telecel Cash Manual',bank_transfer_manual:'Bank Transfer Manual'})[m]||m;
+  return <div className="nx-card p-5 lg:col-span-2"><div className="flex items-center justify-between mb-4"><div><h2 className="font-display font-bold text-lg">Deposit & Withdrawal Review</h2><p className="text-xs text-[#A29DBE] mt-1">Only Admin and Super Admin can approve or reject.</p></div><button onClick={load} disabled={loading}><RefreshCw size={16} className={loading?'animate-spin':''}/></button></div>{transactions.length===0?<p className="text-sm text-[#A29DBE]">No pending transactions.</p>:<div className="space-y-3 max-h-[34rem] overflow-y-auto">{transactions.map(tx=><div key={tx.id} className="bg-[#221c46] rounded-xl p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-lg font-black">{money(tx.amount)}</p><p className="text-xs text-[#A29DBE]">{tx.user?.name||tx.user?.email||tx.user_id}</p><p className="text-[10px] text-[#6E688D] mt-1">{tx.type} · {methodLabel(tx.method)} · {tx.reference||'no reference'}</p></div><span className="text-[10px] uppercase text-[#FFD700]">{tx.status}</span></div>{tx.type==='deposit'&&<div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs"><div><span className="text-[#6E688D]">Sender:</span> {tx.sender_name||'—'}</div><div><span className="text-[#6E688D]">Phone:</span> {tx.sender_phone||'—'}</div><div><span className="text-[#6E688D]">Account name:</span> {tx.sender_account_name||'—'}</div><div><span className="text-[#6E688D]">Transaction ID:</span> <span className="font-mono">{tx.transaction_reference||'—'}</span></div>{tx.proof_data_url&&<a href={tx.proof_data_url} target="_blank" rel="noreferrer" className="text-[#00E5FF] md:col-span-2">View payment proof</a>}</div>}<div className="flex gap-2 mt-4"><button onClick={()=>review(tx.id,'approve')} className="flex-1 rounded-lg bg-[#00FF87]/10 text-[#00FF87] py-2 text-xs font-semibold flex items-center justify-center gap-1"><Check size={13}/>Approve</button><button onClick={()=>review(tx.id,'reject')} className="flex-1 rounded-lg bg-[#FF3366]/10 text-[#FF3366] py-2 text-xs font-semibold flex items-center justify-center gap-1"><X size={13}/>Reject</button></div></div>)}</div>}</div>;
 }
 
 function ReportsPanel() { const [report,setReport]=useState(null); useEffect(()=>{api.get('/admin/reports/summary').then(({data})=>setReport(data)).catch(()=>setReport(null));},[]); if(!report)return null; return <div className="nx-card p-5"><h2 className="font-display font-bold text-lg mb-4">Reports</h2><div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center"><div className="bg-[#221c46] rounded-xl p-3"><b className="block text-xl">{report.users}</b><span className="text-xs text-[#6E688D]">Users</span></div><div className="bg-[#221c46] rounded-xl p-3"><b className="block text-xl">{report.events}</b><span className="text-xs text-[#6E688D]">Events</span></div><div className="bg-[#221c46] rounded-xl p-3"><b className="block text-xl">{money(report.approved_deposits.total)}</b><span className="text-xs text-[#6E688D]">Deposits</span></div><div className="bg-[#221c46] rounded-xl p-3"><b className="block text-xl">{money(report.paid_withdrawals.total)}</b><span className="text-xs text-[#6E688D]">Withdrawals</span></div></div></div>; }
@@ -263,10 +313,11 @@ export default function AdminPage(){
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <DemoWalletPanel user={user}/>
       {isAdmin&&<CashierSettings/>}
+      {isSuper&&<ManualPaymentSettings/>}
       <ReferralPanel user={user}/>
       <PayoutAccountsPanel canEdit={isAdmin}/>
       {isSuper&&<DepositCleanupPanel/>}
-      {(isAdmin||user?.permissions?.includes('transactions.view'))&&<TransactionReview/>}
+      {isAdmin&&<TransactionReview/>}
       {(isAdmin||user?.permissions?.includes('reports.view'))&&<ReportsPanel/>}
       {(isAdmin||user?.permissions?.includes('users.view'))&&<GlobalUsersPanel/>}
       {isAdmin&&<StaffManager user={user}/>} 

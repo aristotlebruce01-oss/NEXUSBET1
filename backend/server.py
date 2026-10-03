@@ -80,13 +80,7 @@ LEAGUE_CATALOG = {
             "Sport-Club Freiburg", "Hamburger SV", "TSG Hoffenheim", "1. FC Köln", "RB Leipzig", "Bayer 04 Leverkusen",
             "1. FSV Mainz 05", "Borussia Mönchengladbach", "FC Bayern München", "SC Paderborn 07", "FC Schalke 04", "VfB Stuttgart"
         ]
-    },
-    "liga-portugal": {"name": "Liga Portugal", "country": "Portugal", "season": "2026/27", "provider_league": "Portuguese Primeira Liga", "teams": []},
-    "eredivisie": {"name": "Eredivisie", "country": "Netherlands", "season": "2026/27", "provider_league": "Dutch Eredivisie", "teams": []},
-    "scottish-premiership": {"name": "Scottish Premiership", "country": "Scotland", "season": "2026/27", "provider_league": "Scottish Premier League", "teams": []},
-    "turkiye-super-lig": {"name": "Türkiye Super Lig", "country": "Türkiye", "season": "2026/27", "provider_league": "Turkish Super Lig", "teams": []},
-    "greece-super-league": {"name": "Greece Super League", "country": "Greece", "season": "2026/27", "provider_league": "Greek Super League", "teams": []},
-    "belgium-pro-league": {"name": "Belgium Pro League", "country": "Belgium", "season": "2026/27", "provider_league": "Belgian Pro League", "teams": []}
+    }
 }
 
 TEAM_ALIASES = {
@@ -125,23 +119,25 @@ def _team_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", value).strip()
 
 async def sync_league_catalog():
-    """Cache football club crests for every supported league.
+    """Sync current club crests from TheSportsDB into MongoDB.
 
-    TheSportsDB is used only as the crest/team-data source. Logos are cached in
-    MongoDB so an event keeps a stable stored logo URL after it is created.
+    The official league sites are the authority for the 2026/27 membership and
+    display names above. TheSportsDB is used only as the football-data source
+    for provider team IDs and current crest URLs.
     """
     for slug, league in LEAGUE_CATALOG.items():
         try:
             url = "https://www.thesportsdb.com/api/v1/json/3/search_all_teams.php"
             response = await asyncio.to_thread(requests.get, url, params={"l": league["provider_league"]}, timeout=12)
             response.raise_for_status()
-            provider_teams = response.json().get("teams") or []
+            payload = response.json() or {}
+            provider_teams = payload.get("teams") or []
             by_key = {_team_key(t.get("strTeam")): t for t in provider_teams if t.get("strTeam")}
-            names = league["teams"] or [t.get("strTeam") for t in provider_teams if t.get("strTeam")]
-            for name in names:
+            for name in league["teams"]:
                 candidates = [name] + TEAM_ALIASES.get(_team_key(name), [])
                 found = next((by_key.get(_team_key(c)) for c in candidates if by_key.get(_team_key(c))), None)
                 if not found:
+                    logger.warning("No TheSportsDB crest match for %s / %s", league["name"], name)
                     continue
                 doc = {
                     "league_slug": slug, "league": league["name"], "country": league["country"], "season": league["season"],
@@ -150,32 +146,18 @@ async def sync_league_catalog():
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 }
                 await db.teams.update_one({"league_slug": slug, "name": name, "season": league["season"]}, {"$set": doc}, upsert=True)
-            team_count = await db.teams.count_documents({"league_slug": slug, "season": league["season"]})
-            await db.leagues.update_one({"slug": slug}, {"$set": {"slug": slug, "name": league["name"], "country": league["country"], "season": league["season"], "team_count": team_count, "updated_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+            await db.leagues.update_one({"slug": slug}, {"$set": {"slug": slug, "name": league["name"], "country": league["country"], "season": league["season"], "team_count": len(league["teams"]), "updated_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
         except Exception as exc:
             logger.warning("League crest sync failed for %s: %s", league["name"], exc)
 
 async def team_asset(name: str, league: Optional[str] = None) -> dict:
-    key = _team_key(name)
-    slug = None
+    query = {"name": name}
     if league:
-        slug = next((k for k,v in LEAGUE_CATALOG.items() if _team_key(v["name"]) == _team_key(league)), None)
-    queries = []
-    if slug:
-        queries.append({"league_slug": slug, "name": name})
-        queries.append({"league_slug": slug, "name": {"$in": TEAM_ALIASES.get(key, [])}})
-    queries.append({"name": name})
-    queries.append({"name": {"$in": TEAM_ALIASES.get(key, [])}})
-    doc = None
-    for q in queries:
-        doc = await db.teams.find_one(q)
-        if doc:
-            break
-    if not doc and (slug or not league):
-        candidates = await db.teams.find({"league_slug": slug}).to_list(300) if slug else await db.teams.find({}).to_list(500)
-        doc = next((d for d in candidates if _team_key(d.get("name")) == key), None)
-    return {"name": name, "logo_url": doc.get("logo_url") if doc else None, "team_id": doc.get("provider_team_id") if doc else None, "league_slug": doc.get("league_slug") if doc else None}
-
+        query["league"] = league
+    doc = await db.teams.find_one(query)
+    if not doc:
+        doc = await db.teams.find_one({"name": name})
+    return {"name": name, "logo_url": doc.get("logo_url") if doc else None, "team_id": doc.get("provider_team_id") if doc else None} 
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 STAFF_ROLES = {"super_admin", "admin", "sub_admin"}
 MANAGER_ROLES = {"super_admin", "admin"}
@@ -308,10 +290,35 @@ def require_permission(permission: str = ""):
         return user
     return dependency
 
+DEFAULT_PAYMENT_METHODS = {
+    "mtn_manual": {
+        "id": "mtn_manual", "label": "MTN MoMo — Manual", "active": True,
+        "receiving_number": "0532026267",
+        "recipient_name": "Gyan Godfred Fosu Nexus’s Approver dè depositè",
+        "instructions": "Send the exact deposit amount to the receiving MTN MoMo number. Enter your sender phone number, sender name and the MTN transaction/reference ID below. You may attach a screenshot of the payment proof."
+    },
+    "telecel_manual": {
+        "id": "telecel_manual", "label": "Telecel Cash — Manual", "active": True,
+        "receiving_number": "0509623244",
+        "recipient_name": "Gyan Godfred Fosu Nexus’s Approver dè depositè",
+        "instructions": "Send the exact deposit amount to the receiving Telecel Cash number. Enter your sender phone number, sender name and the Telecel transaction/reference ID below. You may attach a screenshot of the payment proof."
+    },
+    "bank_transfer_manual": {
+        "id": "bank_transfer_manual", "label": "Bank Transfer — Manual", "active": True,
+        "bank_name": "GCB",
+        "account_number": "1011103552151",
+        "account_name": "Godfred Fosu Gyan",
+        "branch": "",
+        "bank_code": "",
+        "instructions": "Transfer the exact deposit amount to the bank account shown. Enter the sender/account name and bank transaction/reference ID below. You may attach a screenshot of the transfer proof."
+    },
+}
+
 DEFAULT_SETTINGS = {
     "min_deposit": 300.0,
     "min_withdrawal": 3000.0,
     "first_deposit_bonus_cap": 100.0,
+    "payment_methods": DEFAULT_PAYMENT_METHODS,
 }
 
 FIRST_DEPOSIT_BONUS_CAP = 100.0
@@ -321,7 +328,21 @@ async def get_settings() -> dict:
     doc = await db.settings.find_one({"_id": "global"})
     if not doc:
         return dict(DEFAULT_SETTINGS)
-    return {k: doc.get(k, DEFAULT_SETTINGS[k]) for k in DEFAULT_SETTINGS}
+    result = {k: doc.get(k, DEFAULT_SETTINGS[k]) for k in DEFAULT_SETTINGS}
+    result["payment_methods"] = {
+        key: {**DEFAULT_PAYMENT_METHODS[key], **(doc.get("payment_methods", {}).get(key, {}) or {})}
+        for key in DEFAULT_PAYMENT_METHODS
+    }
+    return result
+
+
+def public_payment_methods(settings: dict, include_inactive: bool = False) -> list:
+    methods = []
+    for key in ("mtn_manual", "telecel_manual", "bank_transfer_manual"):
+        cfg = dict(settings["payment_methods"][key])
+        if include_inactive or cfg.get("active", True):
+            methods.append(cfg)
+    return methods
 
 
 # ------------------------------------------------------------------ models
@@ -386,8 +407,17 @@ class VirtualControlInput(BaseModel):
 
 class DepositInput(BaseModel):
     amount: float = Field(gt=0, le=1000000)
-    method: Literal["mtn", "telecel", "airteltigo", "bank"] = "mtn"
-    phone_number: str = Field(min_length=7, max_length=25)
+    method: Literal["mtn_manual", "telecel_manual", "bank_transfer_manual"]
+    sender_name: str = Field(min_length=1, max_length=120)
+    sender_phone: str = Field(min_length=7, max_length=25)
+    sender_account_name: Optional[str] = Field(default="", max_length=120)
+    transaction_reference: str = Field(min_length=3, max_length=120)
+    proof_data_url: Optional[str] = Field(default=None, max_length=3000000)
+
+class PaymentMethodConfigInput(BaseModel):
+    mtn_manual: dict = Field(default_factory=dict)
+    telecel_manual: dict = Field(default_factory=dict)
+    bank_transfer_manual: dict = Field(default_factory=dict)
 
 class WithdrawInput(BaseModel):
     amount: float = Field(gt=0, le=1000000)
@@ -436,13 +466,13 @@ class DepositCleanupInput(BaseModel):
 
 class BetInput(BaseModel):
     event_id: str = Field(min_length=1, max_length=100)
-    market: Literal["match_result", "double_chance", "correct_score", "ht_draw_ft", "goals_over_under", "both_teams_score"] = "match_result"
+    market: Literal["match_result", "double_chance", "correct_score", "ht_draw_ft"] = "match_result"
     selection: str = Field(min_length=1, max_length=80)
     stake: float = Field(gt=0, le=100000)
 
 class TicketSelection(BaseModel):
     event_id: str = Field(min_length=1, max_length=100)
-    market: Literal["match_result", "double_chance", "correct_score", "ht_draw_ft", "goals_over_under", "both_teams_score"] = "match_result"
+    market: Literal["match_result", "double_chance", "correct_score", "ht_draw_ft"] = "match_result"
     selection: str = Field(min_length=1, max_length=80)
 
 class TicketInput(BaseModel):
@@ -598,18 +628,11 @@ def bet_public(doc: dict, event: Optional[dict] = None) -> dict:
 
 
 CORRECT_SCORE_ODDS = {
-    "0-0": 6.0, "1-0": 5.5, "0-1": 6.5, "1-1": 5.0, "2-0": 7.0, "0-2": 8.0,
-    "2-1": 8.0, "1-2": 8.5, "2-2": 10.0, "3-0": 11.0, "0-3": 13.0, "3-1": 12.0,
-    "1-3": 14.0, "3-2": 16.0, "2-3": 17.0, "3-3": 24.0, "4-0": 18.0, "0-4": 22.0,
-    "4-1": 20.0, "1-4": 26.0, "4-2": 24.0, "2-4": 30.0, "4-3": 32.0, "3-4": 36.0, "4-4": 55.0,
+    "0-0": 6.0, "1-0": 5.5, "0-1": 6.5, "1-1": 5.0,
+    "2-0": 7.0, "0-2": 8.0, "2-1": 8.0, "1-2": 8.5,
+    "2-2": 10.0, "3-0": 11.0, "0-3": 13.0, "3-1": 12.0,
+    "1-3": 14.0, "3-2": 16.0, "2-3": 17.0,
 }
-OVER_UNDER_ODDS = {
-    "over_0.5": 1.15, "under_0.5": 5.50, "over_1.5": 1.48, "under_1.5": 2.55,
-    "over_2.5": 2.05, "under_2.5": 1.78, "over_3.5": 3.05, "under_3.5": 1.36,
-    "over_4.5": 4.40, "under_4.5": 1.18, "over_5.5": 6.50, "under_5.5": 1.10,
-}
-BOTH_TEAMS_SCORE_ODDS = {"yes": 1.72, "no": 1.92}
-
 
 def selection_odds(event: dict, selection: str) -> float:
     if selection not in {"home", "draw", "away"}:
@@ -639,14 +662,6 @@ def market_odds(event: dict, market: str, selection: str) -> float:
         if selection not in aliases:
             raise HTTPException(status_code=400, detail="Unsupported half-time/full-time selection")
         return aliases[selection]
-    if market == "goals_over_under":
-        if selection not in OVER_UNDER_ODDS:
-            raise HTTPException(status_code=400, detail="Unsupported over/under selection")
-        return OVER_UNDER_ODDS[selection]
-    if market == "both_teams_score":
-        if selection not in BOTH_TEAMS_SCORE_ODDS:
-            raise HTTPException(status_code=400, detail="Unsupported GG/NG selection")
-        return BOTH_TEAMS_SCORE_ODDS[selection]
     raise HTTPException(status_code=400, detail="Unsupported betting market")
 
 def selection_wins(bet: dict, event: dict, result: str) -> bool:
@@ -669,16 +684,6 @@ def selection_wins(bet: dict, event: dict, result: str) -> bool:
         if ht_home is None or ht_away is None or int(ht_home) != int(ht_away):
             return False
         return selection in {"home", "win1", "ht_draw_ft_home"} and result == "home" or selection in {"draw", "ht_draw_ft_draw"} and result == "draw" or selection in {"away", "win2", "ht_draw_ft_away"} and result == "away"
-    if market == "goals_over_under":
-        total = int(event.get("home_score", 0) or 0) + int(event.get("away_score", 0) or 0)
-        try:
-            line = float(selection.split("_")[1])
-        except (IndexError, ValueError):
-            return False
-        return total > line if selection.startswith("over_") else total < line
-    if market == "both_teams_score":
-        gg = int(event.get("home_score", 0) or 0) > 0 and int(event.get("away_score", 0) or 0) > 0
-        return gg if selection == "yes" else (not gg if selection == "no" else False)
     return False
 
 
@@ -1073,7 +1078,10 @@ def txn_public(d: dict) -> dict:
         "method": d.get("method"),
         "status": d["status"], "reference": d.get("reference"), "created_at": d["created_at"],
         "reviewed_at": d.get("reviewed_at"), "reviewed_by": d.get("reviewed_by"),
-        "review_reason": d.get("review_reason"), "destination": d.get("destination"), "audit_history": d.get("audit_history", []),
+        "review_reason": d.get("review_reason"), "destination": d.get("destination"),
+        "sender_name": d.get("sender_name"), "sender_phone": d.get("sender_phone"),
+        "sender_account_name": d.get("sender_account_name"), "transaction_reference": d.get("transaction_reference"),
+        "proof_data_url": d.get("proof_data_url"), "audit_history": d.get("audit_history", []),
     }
 
 
@@ -1107,93 +1115,78 @@ async def wallet_status(user: dict = Depends(get_current_user)):
         "can_withdraw": can_withdraw,
         "first_deposit_bonus_available": not bool(fresh.get("first_deposit_bonus_awarded", False)),
         "first_deposit_bonus_cap": round(float(s.get("first_deposit_bonus_cap", FIRST_DEPOSIT_BONUS_CAP)), 2),
-        **s,
+        "min_deposit": s["min_deposit"],
+        "min_withdrawal": s["min_withdrawal"],
     }
+
+
+@api_router.get("/wallet/payment-methods")
+async def wallet_payment_methods(user: dict = Depends(get_current_user)):
+    settings = await get_settings()
+    return public_payment_methods(settings)
+
+
+async def _reject_legacy_deposit_method(method: str):
+    raise HTTPException(status_code=400, detail="Unsupported deposit method. Only MTN MoMo Manual, Telecel Cash Manual and Bank Transfer Manual are accepted.")
 
 
 @api_router.post("/wallet/deposit")
 async def deposit(body: DepositInput, user: dict = Depends(get_current_user)):
     if not math.isfinite(body.amount):
         raise HTTPException(status_code=400, detail="Amount must be a finite number")
-    s = await get_settings()
-    if body.amount < s["min_deposit"]:
-        raise HTTPException(status_code=400, detail=f"Minimum deposit is GHS {s['min_deposit']:.0f}")
+    settings = await get_settings()
+    if body.amount < settings["min_deposit"]:
+        raise HTTPException(status_code=400, detail=f"Minimum deposit is GHS {settings['min_deposit']:.0f}")
+    method_cfg = settings["payment_methods"].get(body.method)
+    if not method_cfg or not method_cfg.get("active", True):
+        raise HTTPException(status_code=400, detail="This manual deposit method is currently unavailable.")
 
-    amount = round(body.amount, 2)
-    now = datetime.now(timezone.utc).isoformat()
-    ref = f"NB-D-{uuid.uuid4().hex[:10].upper()}"
-
-    # First-deposit promotion: a 100% match capped at GH₵100. Since the
-    # minimum deposit is GH₵300, an eligible first deposit receives GH₵100.
-    # The atomic filter prevents a double bonus if deposits arrive together.
-    bonus_cap = round(float(s.get("first_deposit_bonus_cap", FIRST_DEPOSIT_BONUS_CAP)), 2)
-    bonus_amount = min(amount, bonus_cap)
-    bonus_result = await db.users.update_one(
-        {"_id": user["_id"], "first_deposit_bonus_awarded": {"$ne": True}},
-        {
-            "$inc": {"balance": amount + bonus_amount, "total_deposited": amount},
-            "$set": {"first_deposit_bonus_awarded": True},
-        },
-    )
-    first_deposit_bonus = bonus_result.modified_count == 1
-    if not first_deposit_bonus:
-        bonus_amount = 0.0
-        await db.users.update_one(
-            {"_id": user["_id"]},
-            {"$inc": {"balance": amount, "total_deposited": amount}},
-        )
-
-    await db.transactions.insert_one({
-        "id": str(uuid.uuid4()), "reference": ref, "user_id": str(user["_id"]),
-        "type": "deposit", "amount": amount, "method": body.method,
-        "phone_number": body.phone_number, "status": "approved", "credited": True,
-        "created_at": now, "first_deposit_bonus": first_deposit_bonus,
-        "bonus_amount": round(bonus_amount, 2),
+    reference = body.transaction_reference.strip()
+    if not reference:
+        raise HTTPException(status_code=400, detail="Transaction/reference ID is required")
+    duplicate = await db.transactions.find_one({
+        "type": "deposit",
+        "transaction_reference": {"$regex": f"^{re.escape(reference)}$", "$options": "i"},
     })
+    if duplicate:
+        raise HTTPException(status_code=409, detail="This payment transaction/reference has already been submitted.")
 
-    if first_deposit_bonus and bonus_amount > 0:
-        await db.transactions.insert_one({
-            "id": str(uuid.uuid4()),
-            "reference": f"NB-B-{uuid.uuid4().hex[:10].upper()}",
-            "user_id": str(user["_id"]),
-            "type": "first_deposit_bonus",
-            "amount": round(bonus_amount, 2),
-            "method": "promotion",
-            "status": "credited",
-            "deposit_reference": ref,
-            "created_at": now,
-            "promotion": "100% first deposit bonus up to GHS 100",
-        })
-
-    # Referral commission uses the real-money deposit amount, not the bonus.
-    referrer_id = user.get("referred_by")
-    if referrer_id and ObjectId.is_valid(referrer_id):
-        referrer = await db.users.find_one({"_id": ObjectId(referrer_id), "role": "sub_admin"})
-        if referrer:
-            commission = round(amount * REFERRAL_COMMISSION_RATE, 2)
-            await db.users.update_one({"_id": referrer["_id"]}, {"$inc": {"commission_total": commission}})
-            await db.transactions.insert_one({
-                "id": str(uuid.uuid4()), "reference": f"NB-C-{uuid.uuid4().hex[:10].upper()}",
-                "user_id": str(referrer["_id"]), "type": "referral_commission", "amount": commission,
-                "deposit_amount": amount, "referred_user_id": str(user["_id"]),
-                "method": "referral", "status": "earned", "commission_rate": REFERRAL_COMMISSION_RATE,
-                "created_at": now, "deposit_reference": ref,
-            })
-
-    fresh = await db.users.find_one({"_id": user["_id"]})
-    total_credited = round(amount + bonus_amount, 2)
-    message = "Deposit credited with your GH₵100 first-deposit bonus." if first_deposit_bonus else "Deposit credited to your wallet."
-    return {
-        "reference": ref, "status": "approved", "balance": round(fresh.get("balance", 0), 2),
-        "deposit_amount": amount, "bonus_amount": round(bonus_amount, 2),
-        "total_credited": total_credited, "first_deposit_bonus": first_deposit_bonus,
-        "message": message,
+    now = datetime.now(timezone.utc).isoformat()
+    txn = {
+        "id": str(uuid.uuid4()),
+        "reference": f"NB-D-{uuid.uuid4().hex[:10].upper()}",
+        "user_id": str(user["_id"]),
+        "type": "deposit",
+        "amount": round(body.amount, 2),
+        "method": body.method,
+        "sender_name": body.sender_name.strip(),
+        "sender_phone": body.sender_phone.strip(),
+        "sender_account_name": body.sender_account_name.strip(),
+        "transaction_reference": reference,
+        "proof_data_url": body.proof_data_url,
+        "status": "pending",
+        "credited": False,
+        "created_at": now,
+        "audit_history": [{"action": "submitted", "submitted_at": now, "submitted_by": str(user["_id"])}],
     }
+    try:
+        await db.transactions.insert_one(txn)
+    except Exception as exc:
+        if "duplicate" in str(exc).lower():
+            raise HTTPException(status_code=409, detail="This payment transaction/reference has already been submitted.")
+        raise
+    await db.audit_logs.insert_one({
+        "type": "deposit", "action": "submitted", "deposit_id": txn["id"],
+        "user_id": str(user["_id"]), "amount": txn["amount"], "method": txn["method"],
+        "transaction_reference": reference, "at": now, "actor_id": str(user["_id"]),
+    })
+    return {"id": txn["id"], "reference": txn["reference"], "status": "pending", "message": "Deposit submitted for review. Your wallet will be credited only after approval."}
 
 
 @api_router.post("/wallet/deposit/manual")
-async def manual_deposit(body: DepositInput, user: dict = Depends(get_current_user)):
-    return await deposit(body, user)
+async def legacy_manual_deposit_rejected(request: Request):
+    raise HTTPException(status_code=410, detail="The legacy manual deposit endpoint is disabled. Use /wallet/deposit with mtn_manual, telecel_manual or bank_transfer_manual.")
+
 
 @api_router.post("/wallet/withdraw")
 async def withdraw(body: WithdrawInput, user: dict = Depends(get_current_user)):
@@ -1436,7 +1429,8 @@ async def create_staff_invite(user_id: str, expires_hours: int = 24, manager: di
 # ------------------------------------------------------------------ settings & staff
 @api_router.get("/settings")
 async def read_settings(user: dict = Depends(get_current_user)):
-    return await get_settings()
+    settings = await get_settings()
+    return {k: settings[k] for k in ("min_deposit", "min_withdrawal", "first_deposit_bonus_cap")}
 
 
 @api_router.put("/admin/settings")
@@ -1449,6 +1443,45 @@ async def update_settings(body: SettingsInput, admin: dict = Depends(require_adm
     if updates:
         await db.settings.update_one({"_id": "global"}, {"$set": updates}, upsert=True)
     return await get_settings()
+
+
+@api_router.get("/admin/payment-methods")
+async def admin_payment_methods(super_admin: dict = Depends(require_super_admin)):
+    settings = await get_settings()
+    return public_payment_methods(settings, include_inactive=True)
+
+
+@api_router.put("/admin/payment-methods")
+async def update_payment_methods(body: PaymentMethodConfigInput, super_admin: dict = Depends(require_super_admin)):
+    settings = await get_settings()
+    current = settings["payment_methods"]
+    incoming = body.model_dump()
+    merged = {}
+    allowed_fields = {
+        "mtn_manual": {"id", "label", "active", "receiving_number", "recipient_name", "instructions"},
+        "telecel_manual": {"id", "label", "active", "receiving_number", "recipient_name", "instructions"},
+        "bank_transfer_manual": {"id", "label", "active", "bank_name", "account_number", "account_name", "branch", "bank_code", "instructions"},
+    }
+    for key in ("mtn_manual", "telecel_manual", "bank_transfer_manual"):
+        patch = incoming.get(key) or {}
+        base = dict(current[key])
+        for field, value in patch.items():
+            if field in allowed_fields[key] and value is not None:
+                if isinstance(value, str):
+                    value = value.strip()
+                base[field] = value
+        base["id"] = key
+        base["active"] = bool(base.get("active", True))
+        merged[key] = base
+    changed = {key: {"previous": current[key], "new": merged[key]} for key in merged if current[key] != merged[key]}
+    await db.settings.update_one({"_id": "global"}, {"$set": {"payment_methods": merged}}, upsert=True)
+    if changed:
+        await db.audit_logs.insert_one({
+            "type": "payment_config", "action": "updated", "actor_id": str(super_admin["_id"]),
+            "actor_role": super_admin.get("role"), "changes": changed,
+            "at": datetime.now(timezone.utc).isoformat(),
+        })
+    return list(merged.values())
 
 
 @api_router.get("/admin/transactions")
@@ -1470,18 +1503,15 @@ async def admin_transactions(status: Optional[str] = None, transaction_type: Opt
 
 @api_router.post("/admin/transactions/{transaction_id}/review")
 async def review_transaction(transaction_id: str, action: Literal["approve", "reject"],
-                             reason: str = "", staff: dict = Depends(require_permission("transactions.review"))):
+                             reason: str = "", staff: dict = Depends(require_admin)):
     txn = await db.transactions.find_one({"id": transaction_id})
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    if txn.get("type") != "withdrawal":
-        raise HTTPException(status_code=400, detail="Deposit review is disabled; deposits are credited automatically.")
+    if txn.get("type") not in ("deposit", "withdrawal"):
+        raise HTTPException(status_code=400, detail="This transaction type cannot be reviewed here")
     if txn.get("status") not in ("pending", "processing"):
         raise HTTPException(status_code=400, detail="Transaction has already been reviewed")
 
-    # Validate stored transaction data before changing its status. This avoids
-    # approving a malformed transaction and then failing during balance credit
-    # or refund processing.
     user_id = txn.get("user_id")
     amount = txn.get("amount")
     if not user_id or not ObjectId.is_valid(user_id):
@@ -1495,35 +1525,87 @@ async def review_transaction(transaction_id: str, action: Literal["approve", "re
     reviewed_at = datetime.now(timezone.utc).isoformat()
     audit_entry = {"action": action, "reason": reason, "reviewed_at": reviewed_at, "reviewed_by": str(staff["_id"])}
 
+    if txn.get("type") == "deposit":
+        if action == "reject":
+            result = await db.transactions.update_one(
+                {"id": transaction_id, "status": "pending", "credited": False},
+                {"$set": {"status": "rejected", "reviewed_at": reviewed_at, "reviewed_by": str(staff["_id"]), "review_reason": reason},
+                 "$push": {"audit_history": audit_entry}},
+            )
+            if result.modified_count != 1:
+                raise HTTPException(status_code=409, detail="Deposit was already reviewed")
+            await db.audit_logs.insert_one({"type":"deposit","action":"rejected","deposit_id":transaction_id,"user_id":user_id,"amount":amount,"method":txn.get("method"),"reviewed_by":str(staff["_id"]),"reason":reason,"at":reviewed_at})
+            return {"ok": True, "status": "rejected"}
+
+        # Approval and wallet credit happen in one MongoDB transaction. The
+        # pending+uncurated filter makes a second approval impossible.
+        session = await client.start_session()
+        try:
+            async with session.start_transaction():
+                fresh_txn = await db.transactions.find_one({"id": transaction_id, "status": "pending", "credited": False}, session=session)
+                if not fresh_txn:
+                    raise HTTPException(status_code=409, detail="Deposit was already reviewed or credited")
+                target = await db.users.find_one({"_id": ObjectId(user_id)}, session=session)
+                if not target:
+                    raise HTTPException(status_code=404, detail="Deposit user not found")
+
+                bonus_amount = 0.0
+                settings = await get_settings()
+                bonus_cap = round(float(settings.get("first_deposit_bonus_cap", FIRST_DEPOSIT_BONUS_CAP)), 2)
+                bonus_filter = {"_id": target["_id"], "first_deposit_bonus_awarded": {"$ne": True}}
+                bonus_amount = min(float(amount), bonus_cap)
+                bonus_result = await db.users.update_one(
+                    bonus_filter,
+                    {"$inc": {"balance": float(amount) + bonus_amount, "total_deposited": float(amount)}, "$set": {"first_deposit_bonus_awarded": True}},
+                    session=session,
+                )
+                first_bonus = bonus_result.modified_count == 1
+                if not first_bonus:
+                    bonus_amount = 0.0
+                    await db.users.update_one({"_id": target["_id"]}, {"$inc": {"balance": float(amount), "total_deposited": float(amount)}}, session=session)
+
+                result = await db.transactions.update_one(
+                    {"id": transaction_id, "status": "pending", "credited": False},
+                    {"$set": {"status": "approved", "credited": True, "reviewed_at": reviewed_at, "reviewed_by": str(staff["_id"]), "review_reason": reason, "first_deposit_bonus": first_bonus, "bonus_amount": round(bonus_amount,2)}, "$push": {"audit_history": audit_entry}},
+                    session=session,
+                )
+                if result.modified_count != 1:
+                    raise HTTPException(status_code=409, detail="Deposit was already reviewed")
+
+                if first_bonus and bonus_amount > 0:
+                    await db.transactions.insert_one({"id":str(uuid.uuid4()),"reference":f"NB-B-{uuid.uuid4().hex[:10].upper()}","user_id":user_id,"type":"first_deposit_bonus","amount":round(bonus_amount,2),"method":"promotion","status":"credited","deposit_reference":fresh_txn["reference"],"created_at":reviewed_at,"promotion":"100% first deposit bonus up to GHS 100"}, session=session)
+
+                referrer_id = target.get("referred_by")
+                if referrer_id and ObjectId.is_valid(referrer_id):
+                    referrer = await db.users.find_one({"_id": ObjectId(referrer_id), "role": "sub_admin"}, session=session)
+                    if referrer:
+                        commission = round(float(amount) * REFERRAL_COMMISSION_RATE, 2)
+                        await db.users.update_one({"_id": referrer["_id"]}, {"$inc": {"commission_total": commission}}, session=session)
+                        await db.transactions.insert_one({"id":str(uuid.uuid4()),"reference":f"NB-C-{uuid.uuid4().hex[:10].upper()}","user_id":str(referrer["_id"]),"type":"referral_commission","amount":commission,"deposit_amount":float(amount),"referred_user_id":user_id,"method":"referral","status":"earned","commission_rate":REFERRAL_COMMISSION_RATE,"created_at":reviewed_at,"deposit_reference":fresh_txn["reference"]}, session=session)
+
+                await db.audit_logs.insert_one({"type":"deposit","action":"approved","deposit_id":transaction_id,"user_id":user_id,"amount":float(amount),"method":fresh_txn.get("method"),"reviewed_by":str(staff["_id"]),"reviewed_at":reviewed_at,"bonus_amount":round(bonus_amount,2),"at":reviewed_at}, session=session)
+        finally:
+            await session.end_session()
+        return {"ok": True, "status": "approved", "credited_amount": round(float(amount) + bonus_amount, 2), "bonus_amount": round(bonus_amount, 2)}
+
+    # Existing withdrawal review flow.
     if action == "approve":
-        approved_status = "paid" if txn.get("type") == "withdrawal" else "approved"
         result = await db.transactions.update_one(
             {"id": transaction_id, "status": {"$in": ["pending", "processing"]}},
-            {"$set": {"status": approved_status, "reviewed_at": reviewed_at,
-                      "reviewed_by": str(staff["_id"]), "review_reason": reason},
-             "$push": {"audit_history": audit_entry}},
+            {"$set": {"status": "paid", "reviewed_at": reviewed_at, "reviewed_by": str(staff["_id"]), "review_reason": reason}, "$push": {"audit_history": audit_entry}},
         )
         if result.modified_count != 1:
             raise HTTPException(status_code=409, detail="Transaction was already reviewed")
-        if txn.get("type") == "deposit" and not txn.get("credited", False):
-            await db.users.update_one(
-                {"_id": ObjectId(txn["user_id"])},
-                {"$inc": {"balance": txn["amount"], "total_deposited": txn["amount"]}}
-            )
-            await db.transactions.update_one({"id": transaction_id}, {"$set": {"credited": True}})
-        return {"ok": True, "status": "approved"}
+        return {"ok": True, "status": "paid"}
 
     result = await db.transactions.update_one(
         {"id": transaction_id, "status": {"$in": ["pending", "processing"]}},
-        {"$set": {"status": "rejected", "reviewed_at": reviewed_at,
-                  "reviewed_by": str(staff["_id"]), "review_reason": reason},
-         "$push": {"audit_history": audit_entry}},
+        {"$set": {"status": "rejected", "reviewed_at": reviewed_at, "reviewed_by": str(staff["_id"]), "review_reason": reason}, "$push": {"audit_history": audit_entry}},
     )
     if result.modified_count != 1:
         raise HTTPException(status_code=409, detail="Transaction was already reviewed")
-    if txn.get("type") == "withdrawal":
-        await db.users.update_one({"_id": ObjectId(txn["user_id"])}, {"$inc": {"balance": txn["amount"]}})
-        return {"ok": True, "status": "rejected", "refunded": round(txn["amount"], 2)}
+    # Withdrawal amounts are deducted at request time; return them on rejection.
+    await db.users.update_one({"_id": ObjectId(user_id)}, {"$inc": {"balance": float(amount)}})
     return {"ok": True, "status": "rejected"}
 
 
@@ -1625,8 +1707,6 @@ def event_public(doc: dict) -> dict:
         "league": doc["league"],
         "home": doc["home"],
         "away": doc["away"],
-        "home_logo_url": doc.get("home_logo_url"),
-        "away_logo_url": doc.get("away_logo_url"),
         "odds": {
             "home": round(doc["odds_home"], 2),
             "draw": round(doc["odds_draw"], 2),
@@ -1648,12 +1728,8 @@ async def hydrate_event_team_assets(doc: dict) -> dict:
         return doc
     home = await team_asset(doc.get("home", ""), doc.get("league"))
     away = await team_asset(doc.get("away", ""), doc.get("league"))
-    updates = {}
-    if not doc.get("home_logo_url") and home.get("logo_url"): updates["home_logo_url"] = home["logo_url"]
-    if not doc.get("away_logo_url") and away.get("logo_url"): updates["away_logo_url"] = away["logo_url"]
-    if not doc.get("home_team_id") and home.get("team_id"): updates["home_team_id"] = home["team_id"]
-    if not doc.get("away_team_id") and away.get("team_id"): updates["away_team_id"] = away["team_id"]
-    if updates:
+    updates = {"home_logo_url": home.get("logo_url"), "away_logo_url": away.get("logo_url"), "home_team_id": home.get("team_id"), "away_team_id": away.get("team_id")}
+    if any(v is not None for v in updates.values()):
         await db.events.update_one({"_id": doc["_id"]}, {"$set": updates})
         doc.update(updates)
     return doc
@@ -1665,7 +1741,7 @@ async def list_leagues():
         teams = await db.teams.find({"league_slug": slug, "season": league["season"]}).sort("name", 1).to_list(30)
         if not teams:
             teams=[{"name":name, "logo_url":None, "provider_team_id":None} for name in league["teams"]]
-        rows.append({"slug":slug,"name":league["name"],"country":league["country"],"season":league["season"],"team_count":len(teams),"teams":[{"name":t.get("name"),"logo_url":t.get("logo_url"),"team_id":t.get("provider_team_id")} for t in teams]})
+        rows.append({"slug":slug,"name":league["name"],"country":league["country"],"season":league["season"],"team_count":len(league["teams"]),"teams":[{"name":t.get("name"),"logo_url":t.get("logo_url"),"team_id":t.get("provider_team_id")} for t in teams]})
     return rows
 
 @api_router.get("/leagues/{slug}")
@@ -1676,7 +1752,7 @@ async def league_detail(slug: str):
     teams=await db.teams.find({"league_slug":slug,"season":league["season"]}).sort("name",1).to_list(30)
     if not teams:
         teams=[{"name":name,"logo_url":None,"provider_team_id":None} for name in league["teams"]]
-    return {"slug":slug,"name":league["name"],"country":league["country"],"season":league["season"],"team_count":len(teams),"teams":[{"name":t.get("name"),"logo_url":t.get("logo_url"),"team_id":t.get("provider_team_id")} for t in teams]}
+    return {"slug":slug,"name":league["name"],"country":league["country"],"season":league["season"],"team_count":len(league["teams"]),"teams":[{"name":t.get("name"),"logo_url":t.get("logo_url"),"team_id":t.get("provider_team_id")} for t in teams]}
 
 @api_router.get("/events")
 async def list_events(sport: Optional[str] = None, q: Optional[str] = None,
@@ -1854,6 +1930,8 @@ async def on_startup():
     await db.users.create_index("referral_code", unique=True, sparse=True)
     await db.events.create_index("id", unique=True)
     await db.events.create_index("kickoff_at")
+    await db.transactions.create_index("transaction_reference", unique=True, sparse=True)
+    await db.audit_logs.create_index("at")
     await seed_admin()
     await normalize_legacy_football_events()
     await seed_events()
