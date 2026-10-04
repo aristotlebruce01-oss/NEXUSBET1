@@ -60,17 +60,13 @@ const marketLabel = (m,s) => m === "match_result" ? ({home:"Home",draw:"Draw",aw
 import TeamLogo from "@/components/TeamLogo";
 import LeagueCrest from "../components/LeagueCrest";
 
-const HERO = [
-  "https://images.unsplash.com/photo-1553778263-73a83bab9b0c?auto=format&fit=crop&w=1100&q=85",
-  "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1100&q=85",
-  "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=1100&q=85",
-];
+const HERO = "/nexusbet-player-banner.jpg";
 
 export default function SportsPage({ activeSection="home", teamSearch="" }) {
   const { user, setBalance, reload } = useAuth();
   const [events,setEvents]=useState([]), [virtual,setVirtual]=useState([]), [loading,setLoading]=useState(true), [filter,setFilter]=useState("all"), [now,setNow]=useState(Date.now());
   const [leagues,setLeagues]=useState([]), [leagueOpen,setLeagueOpen]=useState(null);
-  const [expanded,setExpanded]=useState({}), [selections,setSelections]=useState([]), [stake,setStake]=useState(""), [bookingCode,setBookingCode]=useState(""), [loadedTicket,setLoadedTicket]=useState(null), [hero,setHero]=useState(0), [busy,setBusy]=useState(false), [placedBetSummary,setPlacedBetSummary]=useState(null), [myBetOpen,setMyBetOpen]=useState(false);
+  const [expanded,setExpanded]=useState({}), [selections,setSelections]=useState([]), [stake,setStake]=useState(""), [bookingCode,setBookingCode]=useState(""), [loadedTicket,setLoadedTicket]=useState(null), [busy,setBusy]=useState(false), [placedBetSummary,setPlacedBetSummary]=useState(null), [myBetOpen,setMyBetOpen]=useState(false);
   const ticketStatusesRef = useRef(null);
   const load=useCallback(async()=>{try{
     const requests=[api.get("/events?status=all&limit=120"),api.get("/virtual-football/matches?limit=120")];
@@ -92,7 +88,7 @@ export default function SportsPage({ activeSection="home", teamSearch="" }) {
       ticketStatusesRef.current=nextStatuses;
     }
   }catch(e){toast.error(formatApiErrorDetail(e?.response?.data?.detail)||"Unable to load matches")}finally{setLoading(false)}}, [user, activeSection]);
-  useEffect(()=>{load();const r=setInterval(load,5000),t=setInterval(()=>setNow(Date.now()),1000),h=setInterval(()=>setHero(x=>(x+1)%HERO.length),6500);return()=>{clearInterval(r);clearInterval(t);clearInterval(h)}},[load]);
+  useEffect(()=>{load();const r=setInterval(load,5000),t=setInterval(()=>setNow(Date.now()),1000);return()=>{clearInterval(r);clearInterval(t)}},[load]);
   useEffect(()=>{const fn=(e)=>{setLoadedTicket(e.detail);setBookingCode(e.detail?.booking_code||"");};window.addEventListener("nexus:load-ticket",fn);return()=>window.removeEventListener("nexus:load-ticket",fn)},[]);
   const all=[...events,...virtual.map(x=>({...x,sport:"Virtual Football"}))];
   const sports=useMemo(()=>["all",...Array.from(new Set(events.map(e=>e.sport).filter(Boolean)))],[events]);
@@ -126,7 +122,7 @@ export default function SportsPage({ activeSection="home", teamSearch="" }) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{leagues.map(l=><div key={l.slug} className="nx-card overflow-hidden"><button type="button" onClick={()=>setLeagueOpen(leagueOpen===l.slug?null:l.slug)} className="w-full p-5 text-left hover:bg-white/[.03]"><div className="flex items-center justify-between gap-3"><div><div className="text-xs uppercase tracking-wider font-black text-[#00E5FF]">{l.country} · {l.season}</div><h2 className="text-xl sm:text-2xl font-black mt-1">{l.name}</h2><p className="text-xs text-[#A29DBE] mt-1">{l.team_count} clubs</p></div><ChevronDown className={`transition-transform ${leagueOpen===l.slug?"rotate-180":""}`} /></div></button>{leagueOpen===l.slug&&<div className="px-5 pb-5 border-t border-white/10"><div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4">{l.teams.map(team=><div key={team.name} className="rounded-xl bg-black/20 border border-white/10 p-3 flex items-center gap-3 min-w-0"><LeagueCrest name={team.name} logoUrl={team.logo_url} size={38}/><div className="min-w-0"><div className="font-bold text-xs sm:text-sm leading-tight">{team.name}</div><div className="text-[9px] text-[#6E688D] mt-1">Official crest</div></div></div>)}</div></div>}</div>)}</div>
   </section>;
   return <div className="space-y-6">
-    <section className="nx-card overflow-hidden"><div className="relative h-64 sm:h-80"><div className="absolute inset-0 grid grid-cols-3">{HERO.map((src,i)=><img key={src} src={src} alt="NexusBet soccer player" className={`w-full h-full object-cover transition-opacity duration-1000 ${i===hero?"opacity-100":"opacity-55"}`}/>)}</div><div className="absolute inset-0 bg-gradient-to-r from-[#0F0C20]/90 via-[#0F0C20]/35 to-[#0F0C20]/80"/><div className="absolute inset-0 flex items-end p-6 sm:p-10"><div><span className="text-xs font-black uppercase tracking-[.22em] text-[#00E5FF]">NexusBet sports hub</span><h1 className="text-3xl sm:text-5xl font-black mt-2">My Bet · Live Sports · Virtual Football</h1><p className="text-sm text-[#A29DBE] mt-2">Select your matches first. Nothing is staked until you press Place Bet.</p></div></div></div></section>
+    <section className="nx-card overflow-hidden"><div className="w-full bg-black flex justify-center"><img src={HERO} alt="NexusBet player banner" className="block w-full h-auto object-contain" /></div></section>
     <div className="flex flex-wrap gap-2">{sports.map(s=><button key={s} onClick={()=>setFilter(s)} className={`rounded-full px-4 py-2 text-xs font-bold border ${filter===s?"bg-[#00E5FF] text-black border-[#00E5FF]":"border-white/10 text-[#A29DBE]"}`}>{s==="all"?"All sports":s}</button>)}</div>
     {loading?<div className="nx-card p-8 text-center">Loading matches...</div>:<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{visible.map(e=><Card key={e.id} event={e}/>)}{visibleVirtual.map(e=><Card key={e.id} event={{...e,sport:"Virtual Football"}} isVirtual/>)}{!visible.length&&!visibleVirtual.length&&<div className="nx-card p-8 text-center lg:col-span-2"><Search size={22} className="mx-auto text-[#00E5FF] mb-2"/><p className="font-bold">No teams found</p><p className="text-xs text-[#A29DBE] mt-1">Try another team name.</p></div>}</div>}
     <div className="fixed right-4 bottom-4 z-40 w-[min(430px,calc(100vw-2rem))]">

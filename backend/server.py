@@ -43,7 +43,8 @@ REFERRAL_COMMISSION_RATE = 0.70
 
 LEAGUE_CATALOG = {
     "premier-league": {
-        "name": "Premier League", "country": "England", "season": "2026/27", "provider_league": "English Premier League",
+        "name": "Premier League", "country": "England", "season": "2026/27",
+        "provider_leagues": ["English Premier League", "Premier League"],
         "teams": [
             "Arsenal", "Aston Villa", "AFC Bournemouth", "Brentford", "Brighton & Hove Albion", "Chelsea",
             "Coventry City", "Crystal Palace", "Everton", "Fulham", "Hull City", "Ipswich Town", "Leeds United",
@@ -51,34 +52,90 @@ LEAGUE_CATALOG = {
         ]
     },
     "laliga": {
-        "name": "LaLiga", "country": "Spain", "season": "2026/27", "provider_league": "Spanish La Liga",
+        "name": "LaLiga", "country": "Spain", "season": "2026/27",
+        "provider_leagues": ["Spanish La Liga", "La Liga"],
         "teams": [
             "Athletic Club", "Atlético de Madrid", "CA Osasuna", "Celta", "Deportivo Alavés", "Elche CF", "FC Barcelona",
             "Getafe CF", "Levante UD", "Málaga CF", "R. Racing Club", "Rayo Vallecano", "RC Deportivo",
             "RCD Espanyol de Barcelona", "Real Betis", "Real Madrid", "Real Sociedad", "Sevilla FC", "Valencia CF", "Villarreal CF"
         ]
     },
+    "bundesliga": {
+        "name": "Bundesliga", "country": "Germany", "season": "2026/27",
+        "provider_leagues": ["German Bundesliga", "Bundesliga"],
+        "teams": [
+            "FC Augsburg", "1. FC Union Berlin", "SV Werder Bremen", "Borussia Dortmund", "SV Elversberg", "Eintracht Frankfurt",
+            "Sport-Club Freiburg", "Hamburger SV", "TSG Hoffenheim", "1. FC Köln", "RB Leipzig", "Bayer 04 Leverkusen",
+            "1. FSV Mainz 05", "Borussia Mönchengladbach", "FC Bayern München", "SC Paderborn 07", "FC Schalke 04", "VfB Stuttgart"
+        ]
+    },
     "serie-a": {
-        "name": "Serie A", "country": "Italy", "season": "2026/27", "provider_league": "Italian Serie A",
+        "name": "Serie A", "country": "Italy", "season": "2026/27",
+        "provider_leagues": ["Italian Serie A", "Serie A"],
         "teams": [
             "AC Milan", "Atalanta", "Bologna", "Cagliari", "Como", "Fiorentina", "Frosinone", "Genoa", "Inter",
             "Juventus", "Lazio", "Lecce", "Monza", "Napoli", "Parma", "Roma", "Sassuolo", "Torino", "Udinese", "Venezia"
         ]
     },
     "ligue-1": {
-        "name": "Ligue 1", "country": "France", "season": "2026/27", "provider_league": "French Ligue 1",
+        "name": "Ligue 1", "country": "France", "season": "2026/27",
+        "provider_leagues": ["French Ligue 1", "Ligue 1"],
         "teams": [
             "Angers SCO", "AJ Auxerre", "Stade Brestois 29", "Havre AC", "Le Mans FC", "RC Lens", "FC Lorient", "LOSC",
             "Olympique Lyonnais", "Olympique de Marseille", "AS Monaco", "OGC Nice", "Paris FC", "Paris Saint-Germain",
             "Stade Rennais F.C.", "RC Strasbourg Alsace", "Toulouse FC", "ESTAC Troyes"
         ]
     },
-    "bundesliga": {
-        "name": "Bundesliga", "country": "Germany", "season": "2026/27", "provider_league": "German Bundesliga",
+    "liga-portugal": {
+        "name": "Liga Portugal", "country": "Portugal", "season": "2026/27",
+        "provider_leagues": ["Portuguese Primeira Liga", "Primeira Liga", "Liga Portugal"],
         "teams": [
-            "FC Augsburg", "1. FC Union Berlin", "SV Werder Bremen", "Borussia Dortmund", "SV Elversberg", "Eintracht Frankfurt",
-            "Sport-Club Freiburg", "Hamburger SV", "TSG Hoffenheim", "1. FC Köln", "RB Leipzig", "Bayer 04 Leverkusen",
-            "1. FSV Mainz 05", "Borussia Mönchengladbach", "FC Bayern München", "SC Paderborn 07", "FC Schalke 04", "VfB Stuttgart"
+            "Académico de Viseu", "Casa Pia", "CD Nacional da Madeira", "CD Santa Clara", "Estoril Praia", "Estrela Amadora",
+            "FC Alverca", "FC Arouca", "FC Famalicão", "FC Porto", "Gil Vicente", "Marítimo", "Moreirense", "Rio Ave",
+            "SC Braga", "SL Benfica", "Sporting CP", "Vitória SC"
+        ]
+    },
+    "eredivisie": {
+        "name": "Eredivisie", "country": "Netherlands", "season": "2026/27",
+        "provider_leagues": ["Dutch Eredivisie", "Eredivisie"],
+        "teams": [
+            "ADO Den Haag", "Ajax", "AZ Alkmaar", "Excelsior", "FC Groningen", "FC Twente", "FC Utrecht", "Feyenoord",
+            "Fortuna Sittard", "Go Ahead Eagles", "NEC Nijmegen", "PEC Zwolle", "PSV Eindhoven", "SC Cambuur", "SC Heerenveen",
+            "Sparta Rotterdam", "Telstar", "Willem II"
+        ]
+    },
+    "scottish-premiership": {
+        "name": "Scottish Premiership", "country": "Scotland", "season": "2026/27",
+        "provider_leagues": ["Scottish Premier League", "Scottish Premiership"],
+        "teams": [
+            "Aberdeen FC", "Celtic", "Dundee", "Dundee United", "Falkirk", "Heart of Midlothian (Hearts)",
+            "Hibernian", "Kilmarnock FC", "Motherwell", "Rangers", "St Johnstone", "St Mirren"
+        ]
+    },
+    "super-lig": {
+        "name": "Süper Lig", "country": "Turkey", "season": "2026/27",
+        "provider_leagues": ["Turkish Super Lig", "Turkish Super League", "Super Lig"],
+        "teams": [
+            "Alanyaspor", "Amed SK", "Başakşehir", "Beşiktaş", "Çaykur Rizespor", "Çorum FK", "Erzurumspor FK", "Eyüpspor",
+            "Fenerbahçe", "Galatasaray", "Gaziantep FK", "Gençlerbirliği", "Göztepe Izmir", "Kasımpaşa", "Kocaelispor",
+            "Konyaspor", "Samsunspor", "Trabzonspor"
+        ]
+    },
+    "super-league-greece": {
+        "name": "Super League Greece", "country": "Greece", "season": "2026/27",
+        "provider_leagues": ["Greek Super League", "Super League Greece"],
+        "teams": [
+            "A.E Kifisia", "AEK Athens", "Aris Thessaloniki", "Asteras Tripolis", "Atromitos", "Iraklis", "Kalamata", "Levadiakos",
+            "OFI Crete", "Olympiacos", "Panathinaikos", "Panetolikos", "PAOK", "Volos NPS"
+        ]
+    },
+    "belgian-pro-league": {
+        "name": "Belgian Pro League", "country": "Belgium", "season": "2026/27",
+        "provider_leagues": ["Belgian Pro League", "Belgian First Division A", "Jupiler Pro League"],
+        "teams": [
+            "Cercle Brugge", "Club Brugge", "KAA Gent", "KRC Genk", "KV Kortrijk", "KV Mechelen", "KVC Westerlo", "Lommel SK",
+            "OH Leuven", "RAAL La Louviere", "Royal Antwerp", "RSC Anderlecht", "Sint-Truiden", "SK Beveren",
+            "Sporting Charleroi", "Standard Liège", "Union Saint-Gilloise", "Zulte Waregem"
         ]
     }
 }
@@ -111,6 +168,23 @@ TEAM_ALIASES = {
     "sv elversberg": ["SV Elversberg", "Elversberg"],
     "hamburger sv": ["Hamburger SV", "Hamburg"],
     "tsg hoffenheim": ["TSG Hoffenheim", "Hoffenheim"],
+    "heart of midlothian hearts": ["Heart of Midlothian", "Hearts"],
+    "sporting charleroi": ["Sporting Charleroi", "Charleroi"],
+    "raal la louviere": ["RAAL La Louvière", "RAAL La Louviere"],
+    "a e kifisia": ["A.E Kifisia", "Kifisia"],
+    "aek athens": ["AEK Athens", "AEK"],
+    "aris thessaloniki": ["Aris", "Aris Thessaloniki"],
+    "ofi crete": ["OFI", "OFI Crete"],
+    "volos nps": ["Volos", "Volos NPS"],
+    "panetolikos": ["Panetolikos"],
+    "amed sk": ["Amed SK", "Amedspor"],
+    "goztepe izmir": ["Göztepe", "Goztepe"],
+    "st johnstone": ["St Johnstone"],
+    "aberdeen fc": ["Aberdeen", "Aberdeen FC"],
+    "kilmarnock fc": ["Kilmarnock", "Kilmarnock FC"],
+    "fc alverca": ["FC Alverca", "Alverca"],
+    "fc famalicao": ["FC Famalicão", "Famalicao"],
+    "vitoria sc": ["Vitória SC", "Vitoria Guimaraes", "Vitoria SC"],
 }
 
 def _team_key(value: str) -> str:
@@ -128,10 +202,17 @@ async def sync_league_catalog():
     for slug, league in LEAGUE_CATALOG.items():
         try:
             url = "https://www.thesportsdb.com/api/v1/json/3/search_all_teams.php"
-            response = await asyncio.to_thread(requests.get, url, params={"l": league["provider_league"]}, timeout=12)
-            response.raise_for_status()
-            payload = response.json() or {}
-            provider_teams = payload.get("teams") or []
+            provider_teams = []
+            for provider_league in league.get("provider_leagues", []):
+                try:
+                    response = await asyncio.to_thread(requests.get, url, params={"l": provider_league}, timeout=12)
+                    response.raise_for_status()
+                    payload = response.json() or {}
+                    if payload.get("teams"):
+                        provider_teams = payload.get("teams") or []
+                        break
+                except Exception:
+                    continue
             by_key = {_team_key(t.get("strTeam")): t for t in provider_teams if t.get("strTeam")}
             for name in league["teams"]:
                 candidates = [name] + TEAM_ALIASES.get(_team_key(name), [])
@@ -1027,7 +1108,7 @@ async def place_ticket(booking_code:str, body:dict, user:dict=Depends(get_curren
 
 @api_router.get("/tickets")
 async def list_tickets(user:dict=Depends(get_current_user)):
-    docs=await db.tickets.find({"user_id":str(user["_id"])}).sort("created_at",-1).to_list(200)
+    docs=await db.tickets.find({"user_id":str(user["_id"]), "status":{"$ne":"booked"}}).sort("created_at",-1).to_list(200)
     result=[]
     for d in docs:
         try:
@@ -1721,6 +1802,8 @@ def event_public(doc: dict) -> dict:
         "booking_code": doc.get("booking_code") or f"NBM-{doc['id'][:8].upper()}",
         "kickoff_at": doc.get("kickoff_at"),
         "created_at": doc.get("created_at"),
+        "home_logo_url": doc.get("home_logo_url"),
+        "away_logo_url": doc.get("away_logo_url"),
     }
 
 async def hydrate_event_team_assets(doc: dict) -> dict:

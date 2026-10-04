@@ -16,7 +16,7 @@ export default function OpenBetPage(){
   };
   useEffect(()=>{load();const t=setInterval(load,3000);return()=>clearInterval(t)},[]);
 
-  const open=tickets.filter(t=>["open","booked"].includes(t.status));
+  const open=tickets.filter(t=>t.status==="open");
   const history=tickets.filter(t=>["won","lost"].includes(t.status));
 
   const ticketCard=t=><div key={t.id} className={`nx-card p-5 border ${t.status==="won"?"border-[#00FF87]/50":t.status==="lost"?"border-[#FF3366]/40":"border-white/10"}`}>

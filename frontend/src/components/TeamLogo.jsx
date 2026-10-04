@@ -1,119 +1,247 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
-// Real club crest resolver for the leagues supported by NexusBet.
-// FootyLogos provides current 2026/27 transparent crest files.  We try
-// several safe aliases because admins may enter names such as "Barcelona"
-// instead of "FC Barcelona". Unknown/custom teams keep the old generated badge.
+// Current 2026/27 crest resolver. Backend-provided logo_url is preferred;
+// FootyLogos is the deterministic fallback for the supported top-flight clubs.
 const ALIASES = {
-  "barcelona": ["fc-barcelona"],
-  "barca": ["fc-barcelona"],
-  "fc barcelona": ["fc-barcelona"],
-  "real madrid": ["real-madrid"],
-  "real madrid cf": ["real-madrid"],
-  "atletico madrid": ["atletico-madrid"],
-  "atletico de madrid": ["atletico-madrid"],
-  "athletic bilbao": ["athletic-club-bilbao"],
-  "athletic club": ["athletic-club-bilbao"],
-  "manchester united": ["manchester-united"],
-  "manchester united fc": ["manchester-united"],
-  "man utd": ["manchester-united"],
-  "man united": ["manchester-united"],
-  "manchester city": ["manchester-city"],
-  "man city": ["manchester-city"],
-  "tottenham": ["tottenham-hotspur"],
-  "tottenham hotspur": ["tottenham-hotspur"],
-  "spurs": ["tottenham-hotspur"],
-  "west ham": ["west-ham-united"],
-  "west ham united": ["west-ham-united"],
-  "newcastle": ["newcastle-united"],
-  "newcastle united": ["newcastle-united"],
-  "nottingham forest": ["nottingham-forest"],
-  "nottm forest": ["nottingham-forest"],
-  "wolves": ["wolverhampton-wanderers"],
-  "wolverhampton wanderers": ["wolverhampton-wanderers"],
-  "brighton": ["brighton-hove-albion"],
-  "brighton & hove albion": ["brighton-hove-albion"],
-  "brighton and hove albion": ["brighton-hove-albion"],
-  "bayern munich": ["bayern-munich", "bayern-munchen"],
-  "bayern munchen": ["bayern-munchen", "bayern-munich"],
-  "borussia monchengladbach": ["borussia-monchengladbach", "borussia-monchengladbach-1899"],
-  "borussia mönchengladbach": ["borussia-monchengladbach", "borussia-monchengladbach-1899"],
-  "rb leipzig": ["rb-leipzig"],
-  "inter": ["inter-milan", "inter"],
-  "inter milan": ["inter-milan", "inter"],
-  "internazionale": ["inter-milan", "inter"],
-  "ac milan": ["ac-milan"],
-  "milan": ["ac-milan"],
-  "juventus": ["juventus"],
-  "napoli": ["napoli"],
-  "roma": ["as-roma", "roma"],
-  "as roma": ["as-roma", "roma"],
-  "lazio": ["lazio"],
-  "psg": ["paris-saint-germain"],
-  "paris saint-germain": ["paris-saint-germain"],
-  "paris saint germain": ["paris-saint-germain"],
-  "marseille": ["olympique-marseille", "marseille"],
-  "lyon": ["olympique-lyonnais", "lyon"],
-  "monaco": ["as-monaco", "monaco"],
-  "ajax": ["ajax"],
-  "psv": ["psv-eindhoven", "psv"],
-  "feyenoord": ["feyenoord"],
-  "benfica": ["benfica"],
-  "porto": ["fc-porto", "porto"],
-  "sporting": ["sporting-cp", "sporting"],
-  "sporting cp": ["sporting-cp", "sporting"],
-  "galatasaray": ["galatasaray"],
-  "fenerbahce": ["fenerbahce"],
-  "fenerbahçe": ["fenerbahce"],
-  "besiktas": ["besiktas"],
-  "beşiktaş": ["besiktas"],
+  "barcelona": ["fc-barcelona"], "barca": ["fc-barcelona"], "fc barcelona": ["fc-barcelona"],
+  "real madrid": ["real-madrid"], "real madrid cf": ["real-madrid"],
+  "atletico madrid": ["atletico-madrid"], "atletico de madrid": ["atletico-madrid"],
+  "athletic bilbao": ["athletic-club-bilbao"], "athletic club": ["athletic-club-bilbao"],
+  "alaves": ["deportivo-alaves", "alaves"], "deportivo alaves": ["deportivo-alaves", "alaves"],
+  "celta vigo": ["celta-vigo", "celta"], "rc celta de vigo": ["celta-vigo", "celta"],
+  "elche": ["elche-cf", "elche"], "elche cf": ["elche-cf", "elche"],
+  "espanyol": ["rcd-espanyol", "espanyol"], "rcd espanyol": ["rcd-espanyol", "espanyol"],
+  "getafe": ["getafe-cf", "getafe"], "getafe cf": ["getafe-cf", "getafe"],
+  "levante": ["levante-ud", "levante"], "levante ud": ["levante-ud", "levante"],
+  "malaga": ["malaga-cf", "malaga"], "malaga cf": ["malaga-cf", "malaga"],
+  "rayo vallecano": ["rayo-vallecano"], 
+  "real betis": ["real-betis", "real-betis-balompie"],"real betis balompie": ["real-betis", "real-betis-balompie"],
+  "real sociedad": ["real-sociedad"],
+  "sevilla": ["sevilla-fc", "sevilla"], "sevilla fc": ["sevilla-fc", "sevilla"],
+  "valencia": ["valencia-cf", "valencia"], "valencia cf": ["valencia-cf", "valencia"],
+  "villarreal": ["villarreal-cf", "villarreal"], "villarreal cf": ["villarreal-cf", "villarreal"],
+  "osasuna": ["ca-osasuna", "osasuna"], "ca osasuna": ["ca-osasuna", "osasuna"],
+  "racing santander": ["racing-santander", "real-racing-club"], "real racing club": ["racing-santander", "real-racing-club"],
+  "deportivo la coruna": ["rc-deportivo", "deportivo-la-coruna"], "rc deportivo": ["rc-deportivo", "deportivo-la-coruna"],
+  "manchester united": ["manchester-united"], "manchester united fc": ["manchester-united"], "man utd": ["manchester-united"], "man united": ["manchester-united"],
+  "manchester city": ["manchester-city"], "man city": ["manchester-city"],
+  "tottenham": ["tottenham-hotspur"], "tottenham hotspur": ["tottenham-hotspur"], "spurs": ["tottenham-hotspur"],
+  "west ham": ["west-ham-united"], "west ham united": ["west-ham-united"],
+  "aston villa": ["aston-villa", "aston-villa-fc"], "aston villa fc": ["aston-villa", "aston-villa-fc"],
+  "bournemouth": ["afc-bournemouth", "bournemouth"], "afc bournemouth": ["afc-bournemouth", "bournemouth"],
+  "newcastle": ["newcastle-united"], "newcastle united": ["newcastle-united"],
+  "chelsea": ["chelsea", "chelsea-fc"], "chelsea fc": ["chelsea", "chelsea-fc"],
+  "crystal palace": ["crystal-palace", "crystal-palace-fc"], "crystal palace fc": ["crystal-palace", "crystal-palace-fc"],
+  "nottingham forest": ["nottingham-forest"], "nottm forest": ["nottingham-forest"],
+  "everton": ["everton", "everton-fc"], "everton fc": ["everton", "everton-fc"],
+  "fulham": ["fulham", "fulham-fc"], "fulham fc": ["fulham", "fulham-fc"],
+  "ipswich": ["ipswich-town", "ipswich"], "ipswich town": ["ipswich-town", "ipswich"],
+  "leicester": ["leicester-city", "leicester"], "leicester city": ["leicester-city", "leicester"],
+  "southampton": ["southampton", "southampton-fc"], "southampton fc": ["southampton", "southampton-fc"],
+  "west ham": ["west-ham-united", "west-ham"], "west ham united": ["west-ham-united", "west-ham"],
+  "wolves": ["wolverhampton-wanderers"], "wolverhampton wanderers": ["wolverhampton-wanderers"],
+  "brighton": ["brighton-hove-albion"], "brighton & hove albion": ["brighton-hove-albion"], "brighton and hove albion": ["brighton-hove-albion"],
+  "bayern munich": ["bayern-munich"], "bayern munchen": ["bayern-munich"], "fc bayern münchen": ["bayern-munich"],
+  "borussia monchengladbach": ["borussia-monchengladbach"], "borussia mönchengladbach": ["borussia-monchengladbach"],
+  "augsburg": ["fc-augsburg", "augsburg"],
+  "fc augsburg": ["fc-augsburg", "augsburg"],
+  "bayer leverkusen": ["bayer-leverkusen", "leverkusen", "bayer-04-leverkusen"],
+  "leverkusen": ["bayer-leverkusen", "leverkusen", "bayer-04-leverkusen"],
+  "bayer 04 leverkusen": ["bayer-leverkusen", "leverkusen", "bayer-04-leverkusen"],
+  "bochum": ["vfl-bochum", "bochum"],
+  "vfl bochum": ["vfl-bochum", "bochum"],
+  "borussia dortmund": ["borussia-dortmund", "dortmund", "bvb"],
+  "dortmund": ["borussia-dortmund", "dortmund", "bvb"],
+  "bvb": ["borussia-dortmund", "dortmund", "bvb"],
+  "eintracht frankfurt": ["eintracht-frankfurt", "frankfurt"],
+  "frankfurt": ["eintracht-frankfurt", "frankfurt"],
+  "fc st pauli": ["fc-st-pauli", "st-pauli"],
+  "st pauli": ["fc-st-pauli", "st-pauli"],
+  "freiburg": ["sc-freiburg", "freiburg"],
+  "sc freiburg": ["sc-freiburg", "freiburg"],
+  "heidenheim": ["1-fc-heidenheim", "heidenheim"],
+  "1 fc heidenheim": ["1-fc-heidenheim", "heidenheim"],
+  "hoffenheim": ["tsg-hoffenheim", "hoffenheim"],
+  "tsg hoffenheim": ["tsg-hoffenheim", "hoffenheim"],
+  "holstein kiel": ["holstein-kiel", "kiel"],
+  "mainz": ["mainz-05", "fsv-mainz-05", "mainz"],
+  "mainz 05": ["mainz-05", "fsv-mainz-05", "mainz"],
+  "fsv mainz 05": ["mainz-05", "fsv-mainz-05", "mainz"],
+  "stuttgart": ["vfb-stuttgart", "stuttgart"],
+  "vfb stuttgart": ["vfb-stuttgart", "stuttgart"],
+  "union berlin": ["1-fc-union-berlin", "union-berlin"],
+  "1 fc union berlin": ["1-fc-union-berlin", "union-berlin"],
+  "werder bremen": ["werder-bremen", "bremen"],
+  "bremen": ["werder-bremen", "bremen"],
+  "wolfsburg": ["vfl-wolfsburg", "wolfsburg"],
+  "vfl wolfsburg": ["vfl-wolfsburg", "wolfsburg"],
+  "rb leipzig": ["rb-leipzig"], "inter": ["inter-milan"], "inter milan": ["inter-milan"], "internazionale": ["inter-milan"],
+  "ac milan": ["ac-milan"], "milan": ["ac-milan"], "juventus": ["juventus"], "napoli": ["napoli"],
+  "roma": ["as-roma"], "as roma": ["as-roma"], "lazio": ["lazio"],
+  "atalanta": ["atalanta", "atalanta-bc"],
+  "atalanta bc": ["atalanta", "atalanta-bc"],
+  "bologna": ["bologna", "bologna-fc"],
+  "bologna fc": ["bologna", "bologna-fc"],
+  "cagliari": ["cagliari", "cagliari-calcio"],
+  "cagliari calcio": ["cagliari", "cagliari-calcio"],
+  "empoli": ["empoli", "empoli-fc"],
+  "empoli fc": ["empoli", "empoli-fc"],
+  "fiorentina": ["fiorentina", "acf-fiorentina"],
+  "acf fiorentina": ["fiorentina", "acf-fiorentina"],
+  "genoa": ["genoa", "genoa-cfc"],
+  "genoa cfc": ["genoa", "genoa-cfc"],
+  "lecce": ["lecce", "us-lecce"],
+  "us lecce": ["lecce", "us-lecce"],
+  "parma": ["parma", "parma-calcio"],
+  "parma calcio": ["parma", "parma-calcio"],
+  "torino": ["torino", "torino-fc"],
+  "torino fc": ["torino", "torino-fc"],
+  "udinese": ["udinese", "udinese-calcio"],
+  "udinese calcio": ["udinese", "udinese-calcio"],
+  "verona": ["hellas-verona", "verona"],
+  "hellas verona": ["hellas-verona", "verona"],
+  "como": ["como-1907"], "como 1907": ["como-1907"], "monza": ["ac-monza"], "ac monza": ["ac-monza"],
+  "frosinone": ["frosinone-calcio"], "frosinone calcio": ["frosinone-calcio"], "venezia": ["venezia-fc"], "venezia fc": ["venezia-fc"],
+  "psg": ["paris-saint-germain"], "paris saint-germain": ["paris-saint-germain"], "paris saint germain": ["paris-saint-germain"],
+  "marseille": ["olympique-marseille"], "olympique de marseille": ["olympique-marseille"],
+  "lyon": ["olympique-lyonnais"], "olympique lyonnais": ["olympique-lyonnais"],
+  "monaco": ["as-monaco"], "as monaco": ["as-monaco"],
+  "havre ac": ["le-havre"], "le havre": ["le-havre"], "losc": ["losc-lille"], "lille": ["losc-lille"],
+  "stade rennais f.c.": ["stade-rennais"], "stade rennais": ["stade-rennais"], "rennes": ["stade-rennais"],
+  "rc strasbourg alsace": ["rc-strasbourg-alsace"], "strasbourg": ["rc-strasbourg-alsace"],
+  "estac troyes": ["troyes"], "troyes": ["troyes"], "le mans fc": ["le-mans"], "le mans": ["le-mans"],
+  "aj auxerre": ["aj-auxerre"], "auxerre": ["aj-auxerre"], "stade brestois 29": ["stade-brestois-29"], "brest": ["stade-brestois-29"],
+  "fc lorient": ["fc-lorient"], "lorient": ["fc-lorient"], "rc lens": ["rc-lens"], "lens": ["rc-lens"],
+  "paris fc": ["paris-fc"], "toulouse fc": ["toulouse"], "toulouse": ["toulouse"],
+  "angers": ["angers-sco", "angers"],
+  "angers sco": ["angers-sco", "angers"],
+  "montpellier": ["montpellier-hsc", "montpellier"],
+  "montpellier hsc": ["montpellier-hsc", "montpellier"],
+  "nantes": ["fc-nantes", "nantes"],
+  "fc nantes": ["fc-nantes", "nantes"],
+  "nice": ["ogc-nice", "nice"],
+  "ogc nice": ["ogc-nice", "nice"],
+  "reims": ["stade-de-reims", "reims"],
+  "stade de reims": ["stade-de-reims", "reims"],
+  "saint-etienne": ["as-saint-etienne", "saint-etienne"],
+  "saint etienne": ["as-saint-etienne", "saint-etienne"],
+  "as saint-etienne": ["as-saint-etienne", "saint-etienne"],
+ "ajax": ["ajax"], "psv": ["psv-eindhoven"], "psv eindhoven": ["psv-eindhoven"], "feyenoord": ["feyenoord"],
+  "ado den haag": ["ado-den-haag"], "az alkmaar": ["az-alkmaar"], "excelsior": ["excelsior"], "fc groningen": ["fc-groningen"],
+  "fc twente": ["fc-twente"], "fc utrecht": ["fc-utrecht"], "fortuna sittard": ["fortuna-sittard"], "go ahead eagles": ["go-ahead-eagles"],
+  "nec nijmegen": ["nec-nijmegen"], "pec zwolle": ["pec-zwolle"], "sc cambuur": ["sc-cambuur"], "sc heerenveen": ["sc-heerenveen"],
+  "sparta rotterdam": ["sparta-rotterdam"], "telstar": ["telstar"], "willem ii": ["willem-ii"],
+  "sporting cp": ["sporting-cp"], "sporting cp (lisbon)": ["sporting-cp"], "fc porto": ["fc-porto"], "porto": ["fc-porto"],
+  "sl benfica": ["benfica"], "benfica": ["benfica"], "sc braga": ["sc-braga"], "vitoria sc": ["vitoria-sc"], "vitória sc": ["vitoria-sc"],
+  "academico de viseu": ["academico-de-viseu"], "casa pia": ["casa-pia"], "cd nacional da madeira": ["nacional"], "cd santa clara": ["santa-clara"],
+  "estoril praia": ["estoril"], "estrela amadora": ["estrela-amadora"], "fc alverca": ["fc-alverca"], "fc arouca": ["arouca"],
+  "fc famalicao": ["famalicao"], "gil vicente": ["gil-vicente"], "maritimo": ["maritimo"], "moreirense": ["moreirense"], "rio ave": ["rio-ave"],
+  "aberdeen fc": ["aberdeen"], "aberdeen": ["aberdeen"], "celtic": ["celtic"], "dundee": ["dundee"], "dundee united": ["dundee-united"],
+  "falkirk": ["falkirk"], "heart of midlothian (hearts)": ["heart-of-midlothian"], "heart of midlothian": ["heart-of-midlothian"], "hearts": ["heart-of-midlothian"],
+  "hibernian": ["hibernian"], "kilmarnock fc": ["kilmarnock"], "kilmarnock": ["kilmarnock"], "motherwell": ["motherwell"], "rangers": ["rangers"], "st johnstone": ["st-johnstone"], "st mirren": ["st-mirren"],
+  "amed sk": ["amed-sk"], "amedspor": ["amed-sk"], "başakşehir": ["basaksehir"], "besiktas": ["besiktas"], "beşiktaş": ["besiktas"],
+  "çaykur rizespor": ["caykur-rizespor"], "caykur rizespor": ["caykur-rizespor"], "çorum fk": ["corum-fk"], "corum fk": ["corum-fk"],
+  "erzurumspor fk": ["erzurumspor-fk"], "eyüpspor": ["eyupspor"], "eyupspor": ["eyupspor"], "fenerbahce": ["fenerbahce"], "fenerbahçe": ["fenerbahce"],
+  "galatasaray": ["galatasaray"], "gaziantep fk": ["gaziantep-fk"], "gençlerbirliği": ["genclerbirligi"], "goztepe izmir": ["goztepe"], "göztepe izmir": ["goztepe"],
+  "kasımpaşa": ["kasimpasa"], "kasimpasa": ["kasimpasa"], "kocaelispor": ["kocaelispor"], "konyaspor": ["konyaspor"], "samsunspor": ["samsunspor"], "trabzonspor": ["trabzonspor"],
+  "a.e kifisia": ["kifisia"], "a e kifisia": ["kifisia"], "aek athens": ["aek-athens"], "aris thessaloniki": ["aris"], "aris": ["aris"],
+  "asteras tripolis": ["asteras-tripolis"], "atromitos": ["atromitos"], "iraklis": ["iraklis"], "kalamata": ["kalamata"], "levadiakos": ["levadiakos"],
+  "ofi crete": ["ofi"], "olympiacos": ["olympiacos"], "panathinaikos": ["panathinaikos"], "panetolikos": ["panetolikos"], "paok": ["paok"], "volos nps": ["volos"],
+  "cercle brugge": ["cercle-brugge"], "club brugge": ["club-brugge"], "kaa gent": ["kaa-gent"], "krc genk": ["krc-genk"], "kv kortrijk": ["kv-kortrijk"],
+  "kv mechelen": ["kv-mechelen"], "kvc westerlo": ["westerlo"], "lommel sk": ["lommel"], "oh leuven": ["oh-leuven"], "raal la louviere": ["raal-la-louviere"],
+  "royal antwerp": ["royal-antwerp"], "rsc anderlecht": ["anderlecht"], "sint-truiden": ["sint-truiden"], "sk beveren": ["sk-beveren"], "sporting charleroi": ["sporting-charleroi"],
+  "standard liege": ["standard-liege"], "standard liège": ["standard-liege"], "union saint-gilloise": ["union-saint-gilloise"], "zulte waregem": ["zulte-waregem"],
+  "anderlecht": ["rsc-anderlecht", "anderlecht"],
+  "rsc anderlecht": ["rsc-anderlecht", "anderlecht"],
+  "antwerp": ["royal-antwerp", "antwerp", "royal-antwerp-fc"],
+  "royal antwerp": ["royal-antwerp", "antwerp", "royal-antwerp-fc"],
+  "royal antwerp fc": ["royal-antwerp", "antwerp", "royal-antwerp-fc"],
+  "beerschot": ["k-beerschot-va", "beerschot"],
+  "k beerschot va": ["k-beerschot-va", "beerschot"],
+  "cercle brugge": ["cercle-brugge-ksv", "cercle-brugge"],
+  "cercle brugge ksv": ["cercle-brugge-ksv", "cercle-brugge"],
+  "charleroi": ["royal-charleroi-sc", "charleroi", "sporting-charleroi"],
+  "sporting charleroi": ["royal-charleroi-sc", "charleroi", "sporting-charleroi"],
+  "royal charleroi sc": ["royal-charleroi-sc", "charleroi", "sporting-charleroi"],
+  "club brugge": ["club-brugge-kv", "club-brugge"],
+  "club brugge kv": ["club-brugge-kv", "club-brugge"],
+  "dender": ["fcv-dender-eh", "dender"],
+  "dender eh": ["fcv-dender-eh", "dender"],
+  "fcv dender eh": ["fcv-dender-eh", "dender"],
+  "genk": ["krc-genk", "genk"],
+  "krc genk": ["krc-genk", "genk"],
+  "gent": ["kaa-gent", "gent"],
+  "kaa gent": ["kaa-gent", "gent"],
+  "kortrijk": ["kv-kortrijk", "kortrijk"],
+  "kv kortrijk": ["kv-kortrijk", "kortrijk"],
+  "mechelen": ["kv-mechelen", "mechelen"],
+  "kv mechelen": ["kv-mechelen", "mechelen"],
+  "oh leuven": ["oh-leuven", "oud-heverlee-leuven"],
+  "oud heverlee leuven": ["oh-leuven", "oud-heverlee-leuven"],
+  "sint-truiden": ["sint-truidense-vv", "stvv", "sint-truiden"],
+  "sint truiden": ["sint-truidense-vv", "stvv", "sint-truiden"],
+  "stvv": ["sint-truidense-vv", "stvv", "sint-truiden"],
+  "standard liege": ["standard-liege", "standard-de-liege"],
+  "standard de liege": ["standard-liege", "standard-de-liege"],
+  "union sg": ["royale-union-saint-gilloise", "union-sg", "union-st-gilloise"],
+  "union st gilloise": ["royale-union-saint-gilloise", "union-sg", "union-st-gilloise"],
+  "royale union saint-gilloise": ["royale-union-saint-gilloise", "union-sg", "union-st-gilloise"],
+  "westerlo": ["kvc-westerlo", "westerlo"],
+  "kvc westerlo": ["kvc-westerlo", "westerlo"],
+  "zulte waregem": ["sv-zulte-waregem", "zulte-waregem"],
+  "sv zulte waregem": ["sv-zulte-waregem", "zulte-waregem"],
+  "adana demirspor": ["adana-demirspor"],
+  "alanyaspor": ["alanyaspor", "corendon-alanyaspor"],
+  "antalyaspor": ["antalyaspor"],
+  "basaksehir": ["istanbul-basaksehir", "basaksehir"],
+  "istanbul basaksehir": ["istanbul-basaksehir", "basaksehir"],
+  "besiktas": ["besiktas", "besiktas-jk"],
+  "besiktas jk": ["besiktas", "besiktas-jk"],
+  "bodrum fk": ["bodrum-fk", "bodrumspor"],
+  "caykur rizespor": ["caykur-rizespor", "rizespor"],
+  "rizespor": ["caykur-rizespor", "rizespor"],
+  "eyupspor": ["eyupspor"],
+  "fenerbahce": ["fenerbahce", "fenerbahce-sk"],
+  "fenerbahçe": ["fenerbahce", "fenerbahce-sk"],
+  "galatasaray": ["galatasaray", "galatasaray-sk"],
+  "gaziantep fk": ["gaziantep-fk", "gaziantep"],
+  "goztepe": ["goztepe", "goztepe-sk"],
+  "hatayspor": ["hatayspor"],
+  "kasimpasa": ["kasimpasa", "kasimpasa-sk"],
+  "kayserispor": ["kayserispor"],
+  "konyaspor": ["konyaspor"],
+  "samsunspor": ["samsunspor"],
+  "sivasspor": ["sivasspor"],
   "trabzonspor": ["trabzonspor"],
-  "olympiacos": ["olympiacos"],
-  "panathinaikos": ["panathinaikos"],
-  "anderlecht": ["anderlecht"],
-  "club brugge": ["club-brugge"],
-  "rangers": ["rangers"],
-  "celtic": ["celtic"],
-  // France Ligue 1 (2026/27)
-  "angers sco": ["angers"],
-  "angers": ["angers"],
-  "aj auxerre": ["aj-auxerre"],
-  "auxerre": ["aj-auxerre"],
-  "stade brestois 29": ["stade-brestois-29"],
-  "brest": ["stade-brestois-29"],
-  "le havre ac": ["le-havre"],
-  "le havre": ["le-havre"],
-  "rc lens": ["rc-lens"],
-  "lens": ["rc-lens"],
-  "losc lille": ["losc-lille"],
-  "lille": ["losc-lille"],
-  "fc lorient": ["fc-lorient"],
-  "lorient": ["fc-lorient"],
-  "olympique lyonnais": ["olympique-lyonnais"],
-  "ol": ["olympique-lyonnais"],
-  "le mans fc": ["le-mans"],
-  "le mans": ["le-mans"],
-  "olympique de marseille": ["olympique-marseille"],
-  "om": ["olympique-marseille"],
-  "as monaco": ["as-monaco"],
-  "ogc nice": ["ogc-nice"],
-  "nice": ["ogc-nice"],
-  "paris fc": ["paris-fc"],
-  "rc strasbourg alsace": ["rc-strasbourg-alsace"],
-  "strasbourg": ["rc-strasbourg-alsace"],
-  "stade rennais": ["stade-rennais"],
-  "stade rennais fc": ["stade-rennais"],
-  "rennes": ["stade-rennais"],
-  "toulouse fc": ["toulouse"],
-  "toulouse": ["toulouse"],
-  "estac troyes": ["troyes"],
-  "troyes": ["troyes"],
-};
+  "aek": ["aek-athens", "aek"],
+  "aek athens": ["aek-athens", "aek"],
+  "a.e.k. athens": ["aek-athens", "aek"],
+  "aris": ["aris-thessaloniki", "aris"],
+  "aris thessaloniki": ["aris-thessaloniki", "aris"],
+  "asteras tripolis": ["asteras-tripolis"],
+  "atromitos": ["atromitos", "atromitos-athens"],
+  "kallithea": ["athens-kallithea", "kallithea"],
+  "athens kallithea": ["athens-kallithea", "kallithea"],
+  "lamia": ["pas-lamia", "lamia"],
+  "pas lamia": ["pas-lamia", "lamia"],
+  "levadiakos": ["levadiakos"],
+  "ofi": ["ofi-crete", "ofi"],
+  "ofi crete": ["ofi-crete", "ofi"],
+  "olympiacos": ["olympiacos", "olympiacos-fc", "olympiakos"],
+  "olympiacos fc": ["olympiacos", "olympiacos-fc", "olympiakos"],
+  "panetolikos": ["panetolikos"],
+  "panathinaikos": ["panathinaikos", "panathinaikos-fc"],
+  "panserraikos": ["panserraikos"],
+  "paok": ["paok", "paok-fc"],
+  "paok fc": ["paok", "paok-fc"],
+  "volos": ["volos-nfc", "volos"],
+  "volos nfc": ["volos-nfc", "volos"],
+  "liverpool": ["liverpool-fc", "liverpool"], "liverpool fc": ["liverpool-fc", "liverpool"],
+  };
 
-const normalize = (value) => String(value || "").trim().toLowerCase().replace(/\u00e6/g, "ae").replace(/\u00f8/g, "o").replace(/\u00e5/g, "a").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const normalize = (value) => String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const slugify = (value) => normalize(value).replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-
-function crestCandidates(name) {
+const crestCandidates = (name) => {
   const key = normalize(name);
   const direct = ALIASES[key] || [];
   const slug = slugify(name);
@@ -122,65 +250,40 @@ function crestCandidates(name) {
   if (slug.startsWith("afc-")) variants.push(slug.slice(4));
   if (slug.endsWith("-fc")) variants.push(slug.slice(0, -3));
   if (slug.endsWith("-cf")) variants.push(slug.slice(0, -3));
-  if (slug.endsWith("-afc")) variants.push(slug.slice(0, -4));
   return [...new Set([...direct, ...variants])].filter(Boolean).map((x) => `https://www.footylogos.com/dls/logo/${x}.png`);
-}
+};
 
-function FallbackLogo({ text, size }) {
-  let h1 = 2166136261;
-  let h2 = 16777619;
-  for (let i = 0; i < text.length; i += 1) {
-    const c = text.charCodeAt(i);
-    h1 ^= c;
-    h1 = Math.imul(h1, 16777619) >>> 0;
-    h2 ^= c + i * 97;
-    h2 = Math.imul(h2, 2246822519) >>> 0;
-  }
-  const shapes = ["circle", "square", "triangle", "rectangle", "diamond", "hexagon", "shield", "pentagon", "octagon", "ticket", "burst", "ring"];
-  const shape = shapes[h1 % shapes.length];
-  const hue = h2 % 360;
-  const hue2 = (hue + 42 + ((h1 >>> 8) % 55)) % 360;
-  const letters = text.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase().slice(0, 3) || "TM";
-  const shapeMarkup = {
-    circle: `<circle cx="48" cy="48" r="40" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="4"/>`,
-    square: `<rect x="8" y="8" width="80" height="80" rx="11" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="4"/>`,
-    triangle: `<path d="M48 6 91 88H5Z" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="4" stroke-linejoin="round"/>`,
-    rectangle: `<rect x="4" y="20" width="88" height="56" rx="11" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="4"/>`,
-    diamond: `<path d="M48 4 92 48 48 92 4 48Z" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="4"/>`,
-    hexagon: `<path d="M24 6h48l20 42-20 42H24L4 48Z" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="4"/>`,
-    shield: `<path d="M48 4 86 17v30c0 24-15 39-38 45C25 86 10 71 10 47V17Z" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="4"/>`,
-    pentagon: `<path d="M48 5 90 35 74 89H22L6 35Z" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="4"/>`,
-    octagon: `<path d="M26 5h44l21 21v44L70 91H26L5 70V26Z" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="4"/>`,
-    ticket: `<path d="M8 20h80v17c-8 0-8 14 0 14v17H8V51c8 0 8-14 0-14Z" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="4"/>`,
-    burst: `<path d="m48 3 9 13 15-7 1 16 17 1-7 15 13 10-13 10 7 15-17 1-1 16-15-7-9 13-9-13-15 7-1-16-17-1 7-15L2 51l13-10-7-15 17-1 1-16 15 7Z" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="3"/>`,
-    ring: `<circle cx="48" cy="48" r="41" fill="url(#g)" stroke="white" stroke-opacity=".78" stroke-width="4"/><circle cx="48" cy="48" r="27" fill="#07111e" fill-opacity=".72" stroke="white" stroke-opacity=".35" stroke-width="3"/>`,
-  }[shape];
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="hsl(${hue} 82% 52%)"/><stop offset="1" stop-color="hsl(${hue2} 78% 38%)"/></linearGradient></defs>${shapeMarkup}<circle cx="48" cy="48" r="17" fill="#06101C" fill-opacity=".30" stroke="white" stroke-opacity=".45" stroke-width="2"/><text x="48" y="54" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" font-weight="900" fill="white" letter-spacing="1">${letters}</text></svg>`;
-  return <img src={`data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`} alt={`${text} logo`} width={size} height={size} className="shrink-0 drop-shadow-lg" />;
-}
+const fallbackLogo = (text, size) => {
+  const letters = text.split(/\\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase().slice(0, 3) || "TM";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="41" fill="#15213a" stroke="#00E5FF" stroke-width="4"/><text x="48" y="55" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="900" fill="white">${letters}</text></svg>`;
+  return <img src={`data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`} alt={`${text} logo`} width={size} height={size} className="shrink-0 object-contain" />;
+};
 
-export default function TeamLogo({ name, size = 34 }) {
+export default function TeamLogo({ name, logoUrl, size = 34 }) {
   const text = String(name || "Team").trim() || "Team";
-  const candidates = useMemo(() => crestCandidates(text), [text]);
+  const candidates = useMemo(() => logoUrl ? [logoUrl, ...crestCandidates(text)] : crestCandidates(text), [logoUrl, text]);
   const [index, setIndex] = useState(0);
+  const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  React.useEffect(() => { setIndex(0); setFailed(false); }, [text]);
+  useEffect(() => { setIndex(0); setLoaded(false); setFailed(false); }, [text, logoUrl]);
+  const src = candidates[index];
+  if (failed || !src) return fallbackLogo(text, size);
 
-  if (failed || !candidates.length) return <FallbackLogo text={text} size={size} />;
-  return (
-    <img
-      src={candidates[index]}
-      alt={`${text} crest`}
-      width={size}
-      height={size}
-      className="shrink-0 object-contain drop-shadow-lg"
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      onError={() => {
-        if (index < candidates.length - 1) setIndex((v) => v + 1);
-        else setFailed(true);
-      }}
-    />
-  );
+  return <img
+    src={src}
+    alt={`${text} crest`}
+    width={size}
+    height={size}
+    className="shrink-0 object-contain drop-shadow-lg"
+    style={{ width: size, height: size, opacity: loaded ? 1 : 0 }}
+    loading="eager"
+    decoding="async"
+    referrerPolicy="no-referrer"
+    onLoad={() => setLoaded(true)}
+    onError={() => {
+      if (index < candidates.length - 1) { setLoaded(false); setIndex((v) => v + 1); }
+      else { setLoaded(true); setFailed(true); }
+    }}
+  />;
 }
