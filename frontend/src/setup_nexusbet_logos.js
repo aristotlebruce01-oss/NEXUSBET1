@@ -244,30 +244,66 @@ fs.writeFileSync(path.join(LOGOS_DIR, 'default.svg'), DEFAULT_SHIELD);
 // Download function
 const options = { headers: { 'User-Agent': 'NexusBetInstaller/1.0' } };
 
-async function run() {
-  console.log('Downloading team crests...');
-  const knownSlugs = [];
+// Function to download a single SVG with required headers to prevent rate limits
+function downloadLogo(teamName, url) {
+  return new Promise((resolve) => {
+    const slug = teamName
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "");
 
-  for (const [team, url] of Object.entries(TEAM_CRESTS)) {
-    const slug = slugify(team);
-    knownSlugs.push(slug);
-    const filepath = path.join(LOGOS_DIR, `${slug}.svg`);
+    const filePath = path.join(LOGOS_DIR, `${slug}.svg`);
 
-    await new Promise((resolve) => {
-      https.get(url, options, (res) => {
-        if (res.statusCode === 200) {
-          const stream = fs.createWriteStream(filepath);
-          res.pipe(stream);
-          stream.on('finish', () => { stream.close(); resolve(); });
-        } else {
-          resolve();
-        }
-      }).on('error', resolve);
+    // Skip if already downloaded
+    if (fs.existsSync(filePath)) {
+      return resolve();
+    }
+
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) NexusBetLogoDownloader/1.0'
+      }
+    };
+
+    https.get(url, options, (res) => {
+      // Handle HTTP Redirects
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        return downloadLogo(teamName, res.headers.location).then(resolve);
+      }
+
+      if (res.statusCode !== 200) {
+        console.error(`[FAIL ${res.statusCode}] Could not fetch: ${teamName}`);
+        return resolve();
+      }
+
+      const fileStream = fs.createWriteStream(filePath);
+      res.pipe(fileStream);
+
+      fileStream.on('finish', () => {
+        fileStream.close();
+        console.log(`[DOWNLOADED] ${slug}.svg`);
+        resolve();
+      });
+    }).on('error', (err) => {
+      console.error(`[ERROR] ${teamName}: ${err.message}`);
+      resolve();
     });
+  });
+}
+
+async function run() {
+  console.log("Starting download for all 194 team crests...");
+  
+  // Download logos sequentially with a 150ms delay to avoid Wikimedia bans
+  for (const [team, url] of Object.entries(TEAM_CRESTS)) {
+    await downloadLogo(team, url);
+    await new Promise((r) => setTimeout(r, 150));
   }
 
-  // Create JS Helper Utility
- // Create JS Helper Utility
+  // Regenerate getLogo.js utility without whitelist restrictions
   const helperCode = `// Generated automatically for NexusBet
 export const getLogo = (teamName) => {
   if (!teamName) return "/logos/default.svg";
@@ -285,6 +321,7 @@ export const getLogo = (teamName) => {
 `;
 
   fs.writeFileSync(path.join(UTILS_DIR, 'getLogo.js'), helperCode);
-  console.log('Finished downloading logos and creating getLogo.js!');
+  console.log("Finished downloading all logos and creating getLogo.js!");
 }
+
 run();
