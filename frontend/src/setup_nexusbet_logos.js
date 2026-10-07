@@ -267,30 +267,24 @@ async function run() {
   }
 
   // Create JS Helper Utility
+ // Create JS Helper Utility
   const helperCode = `// Generated automatically for NexusBet
-const SUPPORTED_SLUGS = new Set(${JSON.stringify(knownSlugs)});
-
-export const getTeamLogo = (teamName) => {
+export const getLogo = (teamName) => {
   if (!teamName) return "/logos/default.svg";
 
   const slug = teamName
     .normalize("NFD")
     .replace(/[\\u0300-\\u036f]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, "_")
+    .replace(/[^a-z0-9]+/g, "_")
     .replace(/_+/g, "_")
-    .replace(/^_|_$/g, "");
+    .replace(/^_+|_+$/g, "");
 
-  if (!SUPPORTED_SLUGS.has(slug)) {
-    return "/logos/default.svg";
-  }
-
-  return \`/logos/\${slug}.svg\`;
+  return "/logos/" + slug + ".svg";
 };
 `;
 
   fs.writeFileSync(path.join(UTILS_DIR, 'getLogo.js'), helperCode);
   console.log('Finished downloading logos and creating getLogo.js!');
 }
-
 run();
