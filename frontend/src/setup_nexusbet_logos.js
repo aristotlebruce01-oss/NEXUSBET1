@@ -92,12 +92,9 @@ function sanitizeSlug(name) {
     .replace(/^_+|_+$/g, "");
 }
 
-// Fetch JSON helper
 function fetchJson(url) {
   return new Promise((resolve) => {
-    const options = {
-      headers: { 'User-Agent': 'NexusBetLogoImporter/1.0 (contact@nexusbet.app)' }
-    };
+    const options = { headers: { 'User-Agent': 'NexusBetLogoImporter/1.0 (contact@nexusbet.app)' } };
     https.get(url, options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -108,19 +105,12 @@ function fetchJson(url) {
   });
 }
 
-// Download file helper with redirect support
-function downloadFile(url, destPath, retries = 3) {
+function downloadFile(url, destPath) {
   return new Promise((resolve) => {
-    const options = {
-      headers: { 'User-Agent': 'NexusBetLogoImporter/1.0 (contact@nexusbet.app)' }
-    };
-    https.get(url, options, async (res) => {
+    const options = { headers: { 'User-Agent': 'NexusBetLogoImporter/1.0 (contact@nexusbet.app)' } };
+    https.get(url, options, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302) {
-        return downloadFile(res.headers.location, destPath, retries).then(resolve);
-      }
-      if (res.statusCode === 429 && retries > 0) {
-        await sleep(3000);
-        return downloadFile(url, destPath, retries - 1).then(resolve);
+        return downloadFile(res.headers.location, destPath).then(resolve);
       }
       if (res.statusCode !== 200) return resolve(false);
 
@@ -134,64 +124,71 @@ function downloadFile(url, destPath, retries = 3) {
   });
 }
 
-// Search Wikimedia for SVG logo
+async function searchWikipediaImage(teamName) {
+  // Query English Wikipedia page images API for official article image
+  const pageUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(teamName)}&prop=pageimages|images&pithumbsize=500&format=json`;
+  const pageData = await fetchJson(pageUrl);
+  
+  if (!pageData?.query?.pages) return null;
+  const pageKey = Object.keys(pageData.query.pages)[0];
+  const page = pageData.query.pages[pageKey];
+
+  if (page?.thumbnail?.source) {
+    return page.thumbnail.source;
+  }
+
+  // Fallback search directly on Wikimedia Commons
+  const query = encodeURIComponent(`${teamName} logo svg`);
+  const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${query}&srnamespace=6&format=json`;
+  const searchData = await fetchJson(apiUrl);
+
+  if (searchData?.query?.search?.length > 0) {
+    const fileTitle = searchData.query.search[0].title;
+    const imageInfoUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(fileTitle)}&prop=imageinfo&iiprop=url&format=json`;
+    const infoData = await fetchJson(imageInfoUrl);
+    const pages = infoData?.query?.pages;
+    const pKey = pages ? Object.keys(pages)[0] : null;
+    return pages?.[pKey]?.imageinfo?.[0]?.url || null;
+  }
+
+  return null;
+}
+
 async function findAndDownloadLogo(teamName) {
   const slug = sanitizeSlug(teamName);
   const filePath = path.join(LOGOS_DIR, `${slug}.svg`);
 
+  // Check if real SVG already downloaded (ignore fallback default shields from previous runs)
   if (fs.existsSync(filePath)) {
-    console.log(`[EXISTS] ${slug}.svg`);
-    return;
+    const content = fs.readFileSync(filePath, 'utf-8');
+    if (!content.includes('fill="#6B7280"')) {
+      console.log(`[EXISTS] ${slug}.svg`);
+      return;
+    }
   }
 
-  // API Query search
-  const query = encodeURIComponent(`${teamName} logo svg`);
-  const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${query}&srnamespace=6&format=json`;
+  const imageUrl = await searchWikipediaImage(teamName);
 
-  const searchData = await fetchJson(apiUrl);
-  let fileTitle = null;
-
-  if (searchData?.query?.search) {
-    const svgMatch = searchData.query.search.find(item => item.title.toLowerCase().endsWith('.svg'));
-    if (svgMatch) fileTitle = svgMatch.title;
-  }
-
-  if (!fileTitle) {
-    console.warn(`[NOT FOUND] Creating default logo for: ${teamName}`);
-    fs.writeFileSync(filePath, DEFAULT_SHIELD);
-    return;
-  }
-
-  // Get direct image URL from file title
-  const imageInfoUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(fileTitle)}&prop=imageinfo&iiprop=url&format=json`;
-  const infoData = await fetchJson(imageInfoUrl);
-
-  const pages = infoData?.query?.pages;
-  const pageKey = pages ? Object.keys(pages)[0] : null;
-  const directUrl = pages?.[pageKey]?.imageinfo?.[0]?.url;
-
-  if (directUrl) {
-    const success = await downloadFile(directUrl, filePath);
+  if (imageUrl) {
+    const success = await downloadFile(imageUrl, filePath);
     if (success) {
       console.log(`[DOWNLOADED] ${slug}.svg`);
-    } else {
-      console.error(`[FAIL DOWNLOAD] ${teamName}`);
-      fs.writeFileSync(filePath, DEFAULT_SHIELD);
+      return;
     }
-  } else {
-    fs.writeFileSync(filePath, DEFAULT_SHIELD);
   }
+
+  console.warn(`[NOT FOUND] Set fallback shield for: ${teamName}`);
+  fs.writeFileSync(filePath, DEFAULT_SHIELD);
 }
 
 async function run() {
-  console.log("Starting smart logo resolution...");
+  console.log("Starting enhanced logo import...");
 
   for (const team of TEAMS) {
     await findAndDownloadLogo(team);
-    await sleep(400); // Friendly rate limit spacing
+    await sleep(350);
   }
 
-  // Generate getLogo utility
   const helperCode = `// Generated automatically for NexusBet
 export const getLogo = (teamName) => {
   if (!teamName) return "/logos/default.svg";
