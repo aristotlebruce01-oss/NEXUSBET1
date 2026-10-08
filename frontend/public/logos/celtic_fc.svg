@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1"
+	 id="svg7426" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:svg="http://www.w3.org/2000/svg" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" sodipodi:docname="Kit_shorts_Barcelona_SC_local_2010-2.svg" sodipodi:version="0.32" inkscape:version="0.46" inkscape:output_extension="org.inkscape.output.svg.inkscape"
+	 xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="100px" height="36px"
+	 viewBox="0 0 100 36" enable-background="new 0 0 100 36" xml:space="preserve">
+<g id="Pattern" display="none">
+	<polygon id="Bottom" display="inline" fill="#FFFFFF" points="69.24,-1.73 74.5,35.5 53.5,35.5 50.5,22 47.5,35.5 25.5,35.5 
+		30.76,-1.73 	"/>
+	<polygon id="Top" display="inline" fill="#3F3F3F" points="68.78,-5 69.24,-1.73 30.76,-1.73 31.22,-5 	"/>
+</g>
+<polygon id="Margin" fill="none" stroke="#000000" stroke-miterlimit="10" points="69.24,-1.73 68.78,-5 31.22,-5 30.76,-1.73 
+	25.5,35.5 47.5,35.5 50.5,22 53.5,35.5 74.5,35.5 "/>
+<g id="Jako_Logo">
+	<path id="path2829" d="M71.735,31.61c-0.538,0-0.896,0.392-0.896,0.98c0,0.586,0.364,0.974,0.913,0.974
+		c0.529,0,0.89-0.405,0.89-0.997C72.643,31.981,72.29,31.61,71.735,31.61z M66.582,31.639v1.195c0,0.199-0.06,0.266-0.23,0.266
+		c-0.07,0-0.142-0.012-0.227-0.034v0.452c0.153,0.037,0.227,0.047,0.387,0.047c0.241,0,0.389-0.052,0.498-0.174
+		c0.102-0.111,0.133-0.244,0.133-0.557v-1.195H66.582z M67.818,31.639l-0.586,1.897h0.472l0.114-0.373h0.51l0.104,0.373h0.595
+		l-0.595-1.897H67.818z M69.172,31.639v1.897h0.55v-0.438l0.196-0.278l0.326,0.717h0.641l-0.594-1.204l0.477-0.693h-0.523
+		l-0.522,0.782v-0.782H69.172z M71.746,32.039c0.182,0,0.271,0.159,0.271,0.495c0,0.436-0.078,0.601-0.277,0.601
+		c-0.188,0-0.274-0.175-0.274-0.539C71.466,32.237,71.564,32.039,71.746,32.039z M68.071,32.199l0.154,0.551h-0.309L68.071,32.199z"
+		/>
+	<path id="path2845" d="M63.964,31.18c-0.796,0-1.444,0.646-1.444,1.442c0,0.797,0.648,1.445,1.444,1.445s1.442-0.648,1.442-1.445
+		C65.406,31.826,64.76,31.18,63.964,31.18z M63.964,31.3c0.729,0,1.323,0.593,1.323,1.322c0,0.73-0.594,1.325-1.323,1.325
+		s-1.324-0.595-1.324-1.325C62.64,31.893,63.234,31.3,63.964,31.3z M64.371,31.499c0,0-0.652,0.302-1.572,1.407
+		c0.023,0.089,0.039,0.135,0.073,0.211c0.69-0.476,1.499-0.667,1.499-0.667V31.499z M65.008,32.556c0,0-1.049,0.014-2.084,0.662
+		c0.049,0.084,0.076,0.118,0.131,0.185c0.994-0.278,1.701-0.021,1.701-0.021C64.756,33.381,65.008,32.556,65.008,32.556z"/>
+</g>
+</svg>

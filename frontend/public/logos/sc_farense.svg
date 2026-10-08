@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg version="1.0" width="600" height="400" id="svg1878" xmlns="http://www.w3.org/2000/svg">
+  <rect style="fill: rgb(0, 170, 212); fill-opacity: 1; stroke: none; stroke-width: 15; stroke-linecap: square; stroke-linejoin: miter; stroke-miterlimit: 4; stroke-dasharray: none; stroke-dashoffset: 0; stroke-opacity: 1;" id="rect3489" width="586.666" height="128.889" y="6.667" x="6.667"/>
+  <path style="fill: rgb(255, 255, 255); fill-opacity: 1; fill-rule: evenodd; stroke: none; stroke-width: 1px; stroke-linecap: butt; stroke-linejoin: miter; stroke-opacity: 1;" d="M 6.667 135.556 L 6.667 393.333 L 593.333 135.556 L 6.667 135.556 Z" id="path3491"/>
+  <path id="path3493" d="M 593.333 393.333 L 593.333 135.556 L 6.667 393.333 L 593.333 393.333 Z" style="fill: rgb(0, 0, 0); fill-opacity: 1; fill-rule: evenodd; stroke: none; stroke-width: 1px; stroke-linecap: butt; stroke-linejoin: miter; stroke-opacity: 1;"/>
+  <path d="M -0.001 0 L 600 0 L 600 400 L -0.001 400 Z M 6.667 393.333 L 593.333 393.333 L 593.333 6.667 L 6.667 6.667 Z" style="stroke-width: 2px; vector-effect: non-scaling-stroke; fill: rgb(255, 255, 0);"/>
+</svg>
