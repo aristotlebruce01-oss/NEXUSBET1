@@ -3,7 +3,7 @@ const path = require('path');
 const https = require('https');
 
 // Target directory inside public/
-const LOGOS_DIR = path.join(__dirname, 'public', 'logos');
+const LOGOS_DIR = path.join(__dirname, '..', 'public', 'logos');
 const UTILS_DIR = path.join(__dirname, 'src', 'utils');
 
 // Ensure directories exist
