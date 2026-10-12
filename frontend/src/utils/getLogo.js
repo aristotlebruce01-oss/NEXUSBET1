@@ -1,5 +1,4 @@
 // Generated automatically for NexusBet
-import fs from 'fs';
 
 export const getLogo = (teamName) => {
   if (!teamName) return "/logos/default.svg";
