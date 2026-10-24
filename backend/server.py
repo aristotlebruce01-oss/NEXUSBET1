@@ -621,6 +621,32 @@ async def list_virtual_matches(status: Optional[str] = None, limit: int = 200, s
     docs = await db.events.find(query).sort("kickoff_at", 1).skip(max(0, skip)).limit(min(max(limit, 1), 1000)).to_list(min(max(limit, 1), 1000))
     # Finalize clock-driven matches as soon as the public feed reaches FT.
     for doc in docs:
+        # Simulated virtual matches occasionally score while live. The next goal
+        # timestamp is persisted so polling frequency cannot cause rapid scoring.
+        if doc.get("status") == "live":
+            now_dt = datetime.now(timezone.utc)
+            next_goal = doc.get("next_virtual_goal_at")
+            try:
+                due = bool(next_goal and datetime.fromisoformat(next_goal) <= now_dt)
+            except (TypeError, ValueError):
+                due = False
+            if not next_goal:
+                due = False
+                await db.events.update_one({"id": doc["id"]}, {"$set": {"next_virtual_goal_at": (now_dt + timedelta(seconds=random.randint(18, 55))).isoformat()}})
+            elif due and virtual_phase(doc) != "finished":
+                # A small number of score events per match keeps the feed believable.
+                home_score = int(doc.get("home_score", 0)); away_score = int(doc.get("away_score", 0))
+                if random.random() < 0.72 and home_score + away_score < 7:
+                    if random.random() < 0.5:
+                        home_score += 1
+                    else:
+                        away_score += 1
+                await db.events.update_one({"id": doc["id"], "status": "live"}, {"$set": {
+                    "home_score": home_score, "away_score": away_score,
+                    "next_virtual_goal_at": (now_dt + timedelta(seconds=random.randint(22, 70))).isoformat()
+                }})
+                doc["home_score"] = home_score; doc["away_score"] = away_score
+                doc["next_virtual_goal_at"] = (now_dt + timedelta(seconds=30)).isoformat()
         if doc.get("status") == "live" and virtual_phase(doc) == "finished":
             home_score = int(doc.get("home_score", 0)); away_score = int(doc.get("away_score", 0))
             result = "home" if home_score > away_score else "away" if away_score > home_score else "draw"
@@ -638,7 +664,7 @@ async def create_virtual_match(body: VirtualMatchInput, staff: dict = Depends(re
     doc = body.model_dump()
     doc.update({"id": str(uuid.uuid4()), "sport": "Virtual Football", "kickoff_at": (body.kickoff_at or datetime.now(timezone.utc)).isoformat(),
                 "clock_base_minute": body.minute, "clock_started_at": datetime.now(timezone.utc).isoformat() if body.status == "live" else None,
-                "created_at": datetime.now(timezone.utc).isoformat()})
+                "next_virtual_goal_at": (datetime.now(timezone.utc) + timedelta(seconds=random.randint(18, 55))).isoformat() if body.status == "live" else None, "created_at": datetime.now(timezone.utc).isoformat()})
     await db.events.insert_one(doc)
     return virtual_public(doc)
 
@@ -647,7 +673,7 @@ async def bulk_virtual_matches(body: VirtualBulkInput, staff: dict = Depends(req
     now = datetime.now(timezone.utc).isoformat(); docs = []
     for item in body.matches:
         d = item.model_dump(); d.update({"id": str(uuid.uuid4()), "sport": "Virtual Football", "kickoff_at": (item.kickoff_at or datetime.now(timezone.utc)).isoformat(),
-            "clock_base_minute": item.minute, "clock_started_at": now if item.status == "live" else None, "created_at": now})
+            "clock_base_minute": item.minute, "clock_started_at": now if item.status == "live" else None, "next_virtual_goal_at": (datetime.now(timezone.utc) + timedelta(seconds=random.randint(18, 55))).isoformat() if item.status == "live" else None, "created_at": now})
         docs.append(d)
     if docs: await db.events.insert_many(docs)
     return {"created": len(docs), "matches": [virtual_public(d) for d in docs]}
@@ -677,7 +703,7 @@ async def control_virtual_match(match_id: str, body: VirtualControlInput, staff:
     if not current: raise HTTPException(status_code=404, detail="Virtual match not found")
     values = {k: v for k, v in body.model_dump(exclude_none=True).items()}
     if values.get("status") == "live" and current.get("status") != "live":
-        values["clock_started_at"] = datetime.now(timezone.utc).isoformat(); values["clock_base_minute"] = values.get("minute", current.get("minute", 0))
+        values["clock_started_at"] = datetime.now(timezone.utc).isoformat(); values["clock_base_minute"] = values.get("minute", current.get("minute", 0)); values["next_virtual_goal_at"] = (datetime.now(timezone.utc) + timedelta(seconds=random.randint(18, 55))).isoformat()
     if values.get("status") in ("paused", "halftime", "finished", "cancelled"): values["clock_started_at"] = None
     await db.events.update_one({"id": match_id}, {"$set": values})
     updated = await db.events.find_one({"id": match_id})
