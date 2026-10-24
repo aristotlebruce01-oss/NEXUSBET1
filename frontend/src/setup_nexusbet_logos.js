@@ -1,20 +1,11 @@
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
+const fs = require("fs");
+const path = require("path");
+const https = require("https");
 
-// Target directories
-const LOGOS_DIR = path.join(__dirname, '..', '..', 'public', 'logos');
-const UTILS_DIR = path.join(__dirname, '..', 'utils');
-
-// Ensure directories exist
+const LOGOS_DIR = path.join(__dirname, "..", "public", "logos");
+const UTILS_FILE = path.join(__dirname, "utils", "getLogo.js");
 if (!fs.existsSync(LOGOS_DIR)) fs.mkdirSync(LOGOS_DIR, { recursive: true });
-if (!fs.existsSync(UTILS_DIR)) fs.mkdirSync(UTILS_DIR, { recursive: true });
 
-// Fallback shield SVG
-const DEFAULT_SHIELD = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#6B7280" width="64" height="64"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 .01 0 .01z"/></svg>`;
-fs.writeFileSync(path.join(LOGOS_DIR, 'default.svg'), DEFAULT_SHIELD);
-
-// Full list of 194 teams
 const TEAMS = [
   // Premier League (20)
   "Arsenal FC", "Aston Villa FC", "AFC Bournemouth", "Brentford FC", "Brighton & Hove Albion FC",
@@ -81,121 +72,149 @@ const TEAMS = [
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function sanitizeSlug(name) {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
-function fetchJson(url) {
-  return new Promise((resolve) => {
-    const options = {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
-    };
-    https.get(url, options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); } catch { resolve(null); }
-      });
-    }).on('error', () => resolve(null));
-  });
-}
-
-function downloadFile(url, destPath) {
-  return new Promise((resolve) => {
-    const options = {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
-    };
-    https.get(url, options, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302) {
-        return downloadFile(res.headers.location, destPath).then(resolve);
-      }
-      if (res.statusCode !== 200) return resolve(false);
-
-      const fileStream = fs.createWriteStream(destPath);
-      res.pipe(fileStream);
-      fileStream.on('finish', () => {
-        fileStream.close();
-        resolve(true);
-      });
-    }).on('error', () => resolve(false));
-  });
-}
-
-async function findAndDownloadLogo(teamName) {
-  const slug = sanitizeSlug(teamName);
-
-  // Clean suffix/prefix words for better API matching
-  const queryName = teamName
-    .replace(/ FC| CF| BC| AC| SC| SK| JK| FK| CD| UD| RC| RCD| ACF| SS| US| SSC| AFC| KSV| KV| KRC| KAA| OH| RSC| VA| KVC| GS| SCO| AJ/gi, '')
-    .trim();
-
-  // Query TheSportsDB API
-  const apiUrl = `https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(queryName)}`;
-  const apiData = await fetchJson(apiUrl);
-
-  let badgeUrl = null;
-  if (apiData && apiData.teams && apiData.teams.length > 0) {
-    badgeUrl = apiData.teams[0].strBadge;
-  }
-
-  if (badgeUrl) {
-    // Determine target extension (TheSportsDB delivers PNG images, which maintain transparent backgrounds)
-    const ext = badgeUrl.split('.').pop().split('?')[0] || 'png';
-    const filePath = path.join(LOGOS_DIR, `${slug}.${ext}`);
-
-    const success = await downloadFile(badgeUrl, filePath);
-    if (success) {
-      console.log(`[DOWNLOADED] ${slug}.${ext}`);
-      return;
+const normalize = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+const cleanClub = (value) => normalize(value).replace(/^(fc|afc|acf|ss|ssc|as|us|ud|rcd|rc|cd|sl|sv|vfl|vfb|rsc|kaa|krc|kv|kvc|sc|k)_/, "").replace(/_(fc|cf|bc|ac|sc|sk|jk|fk|cfc|calcio|va|ksv)$/, "");
+const usable = (file) => { try { const size = fs.statSync(file).size; return size > 300 && size <= 5 * 1024 * 1024; } catch { return false; } };
+const existingFor = (team) => {
+  const slug = normalize(team);
+  const candidates = new Set([slug, cleanClub(slug), cleanClub(slug).replace(/^(fc|afc|acf)_/, "")]);
+  const aliases = {
+    "brighton_and_hove_albion_fc": "brighton_hove_albion_fc",
+    "afc_bournemouth": "afc_bournemouth",
+    "aston_villa_fc": "aston_villa_fc",
+    "arsenal_fc": "arsenal_fc",
+    "fc_bayern_munchen": "fc_bayern_munchen",
+    "sc_freiburg": "freiburg",
+    "cagliari_calcio": "cagliari",
+    "rangers_fc": "rangers",
+    "sevilla_fc": "sevilla",
+    "real_madrid_cf": "real_madrid_cf",
+    "aek_athens_fc": "aek_athens"
+  };
+  if (aliases[slug]) candidates.add(aliases[slug]);
+  for (const stem of candidates) {
+    for (const ext of [".svg", ".png", ".webp"]) {
+      const file = path.join(LOGOS_DIR, stem + ext);
+      if (usable(file)) return file;
     }
   }
+  return null;
+};
+const request = (url, asJson = false) => new Promise((resolve) => {
+  const req = https.get(url, { headers: { "User-Agent": "NexusBet-local-crest-import/1.0" }, timeout: 15000 }, (res) => {
+    if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+      res.resume();
+      const redirected = new URL(res.headers.location, url).toString();
+      request(redirected, asJson).then(resolve);
+      return;
+    }
+    const chunks = [];
+    res.on("data", (chunk) => chunks.push(chunk));
+    res.on("end", () => {
+      const body = Buffer.concat(chunks);
+      if (res.statusCode < 200 || res.statusCode >= 300) return resolve(null);
+      if (asJson) { try { resolve(JSON.parse(body.toString("utf8"))); } catch { resolve(null); } }
+      else resolve({ body, contentType: String(res.headers["content-type"] || "").toLowerCase() });
+    });
+  });
+  req.on("timeout", () => { req.destroy(); resolve(null); });
+  req.on("error", () => resolve(null));
+});
+const similarity = (a, b) => {
+  const A = new Set(cleanClub(a).split("_").filter((x) => x.length > 1));
+  const B = new Set(cleanClub(b).split("_").filter((x) => x.length > 1));
+  if (!A.size || !B.size) return 0;
+  const intersection = [...A].filter((x) => B.has(x)).length;
+  return intersection / new Set([...A, ...B]).size;
+};
+const writeReport = (results) => {
+  const lines = ["NexusBet local team crest import report", "", `Catalogue entries: ${TEAMS.length}`, `Downloaded: ${results.filter(x => x.status === "downloaded").length}`, `Already available locally: ${results.filter(x => x.status === "present").length}`, `Not found/needs review: ${results.filter(x => x.status === "missing").length}`, "", "Details:"];
+  for (const r of results) lines.push(`${r.status.toUpperCase()} | ${r.team}${r.note ? ` | ${r.note}` : ""}`);
+  fs.writeFileSync(path.join(__dirname, "..", "..", "LEAGUE_CREST_IMPORT_REPORT.txt"), lines.join("\n") + "\n", "utf8");
+};
 
-  // Fallback to SVG shield if download fails
-  console.warn(`[NOT FOUND] Set fallback shield for: ${teamName}`);
-  fs.writeFileSync(path.join(LOGOS_DIR, `${slug}.svg`), DEFAULT_SHIELD);
-}
-
-async function run() {
-  console.log("Downloading team badges via TheSportsDB API...");
-
-  for (const team of TEAMS) {
-    await findAndDownloadLogo(team);
-    await sleep(150); // Respect rate limits
+function refreshResolverFromLocalAssets() {
+  // Rebuild the browser resolver after downloading so every new local image is actually discoverable.
+  // This prevents the downloader from saving a crest that the frontend never uses.
+  let aliases = {};
+  try {
+    const current = fs.readFileSync(UTILS_FILE, "utf8");
+    const match = current.match(/const ALIASES = (\{[\s\S]*?\});\s*\n\s*export/);
+    if (match) aliases = JSON.parse(match[1]);
+  } catch (error) {
+    console.warn("Could not preserve existing crest aliases:", error.message);
   }
 
-  // Generate helper function matching both .png and .svg extensions dynamically
-  const helperCode = `// Generated automatically for NexusBet
-import fs from 'fs';
+  const candidates = [];
+  for (const filename of fs.readdirSync(LOGOS_DIR)) {
+    const fullPath = path.join(LOGOS_DIR, filename);
+    let stat;
+    try { stat = fs.statSync(fullPath); } catch { continue; }
+    const ext = path.extname(filename).toLowerCase();
+    if (!stat.isFile() || ![".svg", ".png", ".webp", ".jpg", ".jpeg"].includes(ext) || stat.size <= 300 || stat.size > 5 * 1024 * 1024) continue;
+    let stem = path.basename(filename, ext);
+    if (stem.toLowerCase().endsWith(".svg")) stem = stem.slice(0, -4);
+    candidates.push({
+      slug: normalize(stem),
+      url: `/logos/${filename}`,
+      ext,
+      size: stat.size
+    });
+  }
+  // Prefer SVG when the same club is packaged in multiple formats.
+  candidates.sort((a, b) => (a.ext === ".svg" ? 0 : 1) - (b.ext === ".svg" ? 0 : 1) || b.size - a.size);
+  const fileLogos = {};
+  for (const item of candidates) if (!fileLogos[item.slug]) fileLogos[item.slug] = item.url;
+  // Preserve aliases whose crest is still missing; they become valid as soon as that file is imported.
 
-export const getLogo = (teamName) => {
-  if (!teamName) return "/logos/default.svg";
-
-  const slug = teamName
-    .normalize("NFD")
-    .replace(/[\\u0300-\\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-  // Checks for direct match in public folder or defaults
-  return "/logos/" + slug + ".png";
-};
-`;
-
-  fs.writeFileSync(path.join(UTILS_DIR, 'getLogo.js'), helperCode);
-  console.log("\nProcess completed!");
+  const output = `// Auto-generated local-only team crest resolver. Only points to image files present in public/logos.\n// Unknown teams return null; TeamLogo renders a deterministic custom badge.\nconst FILE_LOGOS = ${JSON.stringify(fileLogos, null, 2)};\nconst ALIASES = ${JSON.stringify(aliases, null, 2)};\n\nexport const normalizeTeamName = (value) => String(value || "")\n  .normalize("NFD")\n  .replace(/[\\u0300-\\u036f]/g, "")\n  .toLowerCase()\n  .replace(/&/g, " and ")\n  .replace(/[^a-z0-9]+/g, "_")\n  .replace(/^_+|_+$/g, "");\n\nexport const getLogo = (teamName) => {\n  const slug = normalizeTeamName(teamName);\n  if (!slug) return null;\n  if (FILE_LOGOS[slug]) return FILE_LOGOS[slug];\n  if (ALIASES[slug] && FILE_LOGOS[ALIASES[slug]]) return FILE_LOGOS[ALIASES[slug]];\n  const variants = [\n    slug.replace(/^(fc|afc|acf|ss|ssc|as|us|ud|rcd|rc|cd|sl|sv|vfl|vfb|rsc|kaa|krc|kv|kvc|sc|k)_/, ""),\n    slug.replace(/_(fc|cf|bc|ac|sc|sk|jk|fk|cfc|calcio|va|ksv|kv|sad)$/, ""),\n    slug.replace(/^(fc|afc|acf|ss|ssc|as|us|ud|rcd|rc|cd|sl|sv|vfl|vfb|rsc|kaa|krc|kv|kvc|sc|k)_/, "").replace(/_(fc|cf|bc|ac|sc|sk|jk|fk|cfc|calcio|va|ksv|kv|sad)$/, "")\n  ];\n  for (const variant of variants) {\n    if (FILE_LOGOS[variant]) return FILE_LOGOS[variant];\n    if (ALIASES[variant] && FILE_LOGOS[ALIASES[variant]]) return FILE_LOGOS[ALIASES[variant]];\n  }\n  return null;\n};\nexport default getLogo;\n`;
+  fs.writeFileSync(UTILS_FILE, output, "utf8");
+  console.log(`Resolver refreshed from ${Object.keys(fileLogos).length} valid local crest files.`);
 }
 
-run();
+async function main() {
+  console.log("NexusBet: checking local club crests. Existing valid images will not be replaced.");
+  const results = [];
+  for (let i = 0; i < TEAMS.length; i += 1) {
+    const team = TEAMS[i];
+    if (existingFor(team)) {
+      console.log(`[${i + 1}/${TEAMS.length}] LOCAL  ${team}`);
+      results.push({ team, status: "present" });
+      continue;
+    }
+    const query = `https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(team)}`;
+    const data = await request(query, true);
+    const matches = Array.isArray(data?.teams) ? data.teams.filter(x => x?.strTeam && x?.strBadge) : [];
+    const ranked = matches.map(x => ({ item: x, score: similarity(team, x.strTeam) })).sort((a,b) => b.score-a.score);
+    const best = ranked[0];
+    if (!best || best.score < 0.6) {
+      console.log(`[${i + 1}/${TEAMS.length}] MISSING ${team} (no confident match)`);
+      results.push({ team, status: "missing", note: "No confident team-name match from provider" });
+      await sleep(250);
+      continue;
+    }
+    const image = await request(best.item.strBadge, false);
+    if (!image || image.body.length < 1000 || !(image.contentType.includes("image") || /<svg|\x89PNG/.test(image.body.subarray(0, 300).toString("latin1")))) {
+      console.log(`[${i + 1}/${TEAMS.length}] MISSING ${team} (badge download failed)`);
+      results.push({ team, status: "missing", note: "Badge download failed or image was invalid" });
+      await sleep(250);
+      continue;
+    }
+    const isSvg = image.contentType.includes("svg") || image.body.subarray(0, 300).toString("utf8").includes("<svg");
+    const ext = isSvg ? ".svg" : ".png";
+    const file = path.join(LOGOS_DIR, normalize(team) + ext);
+    fs.writeFileSync(file, image.body);
+    // If the resolver's reserved canonical path was .png but provider returned SVG, update all map references.
+    if (isSvg) {
+      const helper = fs.readFileSync(UTILS_FILE, "utf8");
+      fs.writeFileSync(UTILS_FILE, helper.replaceAll(`/logos/${normalize(team)}.png`, `/logos/${normalize(team)}.svg`), "utf8");
+    }
+    console.log(`[${i + 1}/${TEAMS.length}] DOWNLOADED ${team} (${best.item.strTeam})`);
+    results.push({ team, status: "downloaded", note: `matched provider team ${best.item.strTeam}` });
+    await sleep(300);
+  }
+  refreshResolverFromLocalAssets();
+  writeReport(results);
+  console.log("\nImport finished. Review LEAGUE_CREST_IMPORT_REPORT.txt before deployment.");
+}
+main().catch((error) => { console.error(error); process.exitCode = 1; });
