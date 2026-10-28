@@ -60,6 +60,7 @@ const marketLabel = (m,s) => m === "match_result" ? ({home:"Home",draw:"Draw",aw
 import TeamLogo from "@/components/TeamLogo";
 import VirtualTeamLogo from "@/components/VirtualTeamLogo";
 import LeagueCrest from "../components/LeagueCrest";
+import HeroCarousel from "@/components/HeroCarousel";
 
 const HERO = "/nexusbet-player-banner.jpg";
 
@@ -124,7 +125,7 @@ export default function SportsPage({ activeSection="home", teamSearch="" }) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{leagues.map(l=><div key={l.slug} className="nx-card overflow-hidden"><button type="button" onClick={()=>setLeagueOpen(leagueOpen===l.slug?null:l.slug)} className="w-full p-5 text-left hover:bg-white/[.03]"><div className="flex items-center justify-between gap-3"><div><div className="text-xs uppercase tracking-wider font-black text-[#00E5FF]">{l.country} · {l.season}</div><h2 className="text-xl sm:text-2xl font-black mt-1">{l.name}</h2><p className="text-xs text-[#A29DBE] mt-1">{l.team_count} clubs</p></div><ChevronDown className={`transition-transform ${leagueOpen===l.slug?"rotate-180":""}`} /></div></button>{leagueOpen===l.slug&&<div className="px-5 pb-5 border-t border-white/10"><div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4">{l.teams.map(team=><div key={team.name} className="rounded-xl bg-black/20 border border-white/10 p-3 flex items-center gap-3 min-w-0"><LeagueCrest name={team.name} logoUrl={team.logo_url} size={38}/><div className="min-w-0"><div className="font-bold text-xs sm:text-sm leading-tight">{team.name}</div><div className="text-[9px] text-[#6E688D] mt-1">Official crest</div></div></div>)}</div></div>}</div>)}</div>
   </section>;
   return <div className="space-y-6">
-    <section className="nx-card overflow-hidden"><div className="w-full bg-black flex justify-center"><img src={HERO} alt="NexusBet player banner" className="block w-full h-auto object-contain" /></div></section>
+    <HeroCarousel />
     <div className="flex flex-wrap gap-2">{sports.map(s=><button key={s} onClick={()=>setFilter(s)} className={`rounded-full px-4 py-2 text-xs font-bold border ${filter===s?"bg-[#00E5FF] text-black border-[#00E5FF]":"border-white/10 text-[#A29DBE]"}`}>{s==="all"?"All sports":s}</button>)}</div>
     {loading?<div className="nx-card p-8 text-center">Loading matches...</div>:<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{visible.map(e=><Card key={e.id} event={e}/>)}{visibleVirtual.map(e=><Card key={e.id} event={{...e,sport:"Virtual Football"}} isVirtual/>)}{!visible.length&&!visibleVirtual.length&&<div className="nx-card p-8 text-center lg:col-span-2"><Search size={22} className="mx-auto text-[#00E5FF] mb-2"/><p className="font-bold">No teams found</p><p className="text-xs text-[#A29DBE] mt-1">Try another team name.</p></div>}</div>}
     <div className={`fixed right-3 bottom-3 z-40 ${myBetOpen?"w-[min(430px,calc(100vw-1.5rem))]":"w-16"}`}>
@@ -139,11 +140,11 @@ export default function SportsPage({ activeSection="home", teamSearch="" }) {
             const ev = all.find(e=>String(e.id)===String(x.event_id));
             const home = x.home || ev?.home || "Home";
             const away = x.away || ev?.away || "Away";
-            return <div key={String(x.event_id)+String(i)} className="rounded-xl bg-black/20 border border-white/10 p-3">
-              <div className="flex items-center gap-2">
-                <TeamLogo name={home} size={32}/><div className="min-w-0 flex-1 font-bold text-xs truncate">{home}</div>
+            return <div key={String(x.event_id)+String(i)} className="team-names-only rounded-xl bg-black/20 border border-white/10 p-3">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                <div className="min-w-0 font-bold text-xs truncate">{home}</div>
                 <span className="text-[10px] font-black text-[#FFD700]">VS</span>
-                <div className="min-w-0 flex-1 font-bold text-xs text-right truncate">{away}</div><TeamLogo name={away} size={32}/>
+                <div className="min-w-0 font-bold text-xs text-right truncate">{away}</div>
               </div>
               <div className="mt-2 flex items-center justify-between text-[11px]"><span className="text-[#A29DBE]">{marketLabel(x.market,x.selection)}</span><b className="text-[#00E5FF]">@ {Number(x.odds).toFixed(2)}</b></div>
             </div>

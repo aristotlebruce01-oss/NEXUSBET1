@@ -1,3 +1,10 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+# ... bring over any other necessary imports from server.py (models, schemas, db sessions)
+
+router = APIRouter(
+        tags=["NexusBet"]
+)
+
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -255,12 +262,54 @@ async def unique_code(collection, field: str, n: int = 8) -> str:
             return code
     return gen_code(n + 2)
 
-app = FastAPI()
+
+
+@router.get("/odds")
+def get_live_sports_odds():
+    """Return sanitized upcoming fixtures and head-to-head odds from The Odds API."""
+    api_key = os.getenv("ODDS_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Sports odds provider is not configured (ODDS_API_KEY missing).")
+    url = "https://api.the-odds-api.com/v4/sports/upcoming/odds"
+    params = {"apiKey": api_key, "regions": os.getenv("ODDS_REGIONS", "uk,us,au"),
+              "markets": "h2h", "oddsFormat": "decimal", "dateFormat": "iso"}
+    try:
+        response = requests.get(url, params=params, timeout=15)
+        response.raise_for_status()
+        payload = response.json()
+    except requests.RequestException as exc:
+        logging.warning("Odds provider request failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Unable to fetch live sports odds right now.")
+    except ValueError:
+        raise HTTPException(status_code=502, detail="Odds provider returned an invalid response.")
+
+    matches = []
+    for event in payload if isinstance(payload, list) else []:
+        bookmakers = []
+        for bookmaker in event.get("bookmakers", []) or []:
+            markets = []
+            for market in bookmaker.get("markets", []) or []:
+                if market.get("key") != "h2h":
+                    continue
+                outcomes = [{"name": str(o.get("name", "")), "price": o.get("price")}
+                            for o in (market.get("outcomes", []) or [])
+                            if o.get("name") and isinstance(o.get("price"), (int, float))]
+                if outcomes:
+                    markets.append({"key": "h2h", "outcomes": outcomes, "last_update": market.get("last_update")})
+            if markets:
+                bookmakers.append({"key": bookmaker.get("key"), "title": bookmaker.get("title"),
+                                   "last_update": bookmaker.get("last_update"), "markets": markets})
+        matches.append({"id": event.get("id"), "sport_key": event.get("sport_key"),
+                        "sport_title": event.get("sport_title"), "commence_time": event.get("commence_time"),
+                        "home_team": event.get("home_team"), "away_team": event.get("away_team"),
+                        "bookmakers": bookmakers})
+    return {"matches": matches, "count": len(matches)}
+
 bearer_scheme = HTTPBearer(auto_error=False)
 
 # Demo wagering is enabled. All stakes use the platform's demo wallet balance;
 # no external payment provider or real-money settlement is connected.
-api_router = APIRouter(prefix="/api")
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("nexusbet")
@@ -614,7 +663,7 @@ def virtual_public(doc: dict) -> dict:
             "booking_code": doc.get("booking_code") or f"NBM-{doc['id'][:8].upper()}",
             "odds": {"home": round(doc.get("odds_home", 2), 2), "draw": round(doc.get("odds_draw", 3.2), 2), "away": round(doc.get("odds_away", 3), 2)}}
 
-@api_router.get("/virtual-football/matches")
+@router.get("/virtual-football/matches")
 async def list_virtual_matches(status: Optional[str] = None, limit: int = 200, skip: int = 0):
     query = {"sport": "Virtual Football"}
     if status in {"scheduled", "live", "halftime", "finished", "paused", "cancelled"}: query["status"] = status
@@ -659,7 +708,7 @@ async def list_virtual_matches(status: Optional[str] = None, limit: int = 200, s
             pass
     return [virtual_public(d) for d in docs]
 
-@api_router.post("/admin/virtual-football/matches")
+@router.post("/admin/virtual-football/matches")
 async def create_virtual_match(body: VirtualMatchInput, staff: dict = Depends(require_permission("events.manage"))):
     doc = body.model_dump()
     doc.update({"id": str(uuid.uuid4()), "sport": "Virtual Football", "kickoff_at": (body.kickoff_at or datetime.now(timezone.utc)).isoformat(),
@@ -668,7 +717,7 @@ async def create_virtual_match(body: VirtualMatchInput, staff: dict = Depends(re
     await db.events.insert_one(doc)
     return virtual_public(doc)
 
-@api_router.post("/admin/virtual-football/bulk")
+@router.post("/admin/virtual-football/bulk")
 async def bulk_virtual_matches(body: VirtualBulkInput, staff: dict = Depends(require_permission("events.manage"))):
     now = datetime.now(timezone.utc).isoformat(); docs = []
     for item in body.matches:
@@ -678,7 +727,7 @@ async def bulk_virtual_matches(body: VirtualBulkInput, staff: dict = Depends(req
     if docs: await db.events.insert_many(docs)
     return {"created": len(docs), "matches": [virtual_public(d) for d in docs]}
 
-@api_router.post("/admin/virtual-football/bulk-csv")
+@router.post("/admin/virtual-football/bulk-csv")
 async def bulk_virtual_csv(file: UploadFile = File(...), staff: dict = Depends(require_permission("events.manage"))):
     raw = await file.read()
     if len(raw) > 5 * 1024 * 1024: raise HTTPException(status_code=413, detail="CSV file is larger than 5MB")
@@ -697,7 +746,7 @@ async def bulk_virtual_csv(file: UploadFile = File(...), staff: dict = Depends(r
         except Exception as exc: raise HTTPException(status_code=400, detail=f"Invalid row {i}: {exc}")
     return await bulk_virtual_matches(VirtualBulkInput(matches=matches), staff)
 
-@api_router.patch("/admin/virtual-football/matches/{match_id}")
+@router.patch("/admin/virtual-football/matches/{match_id}")
 async def control_virtual_match(match_id: str, body: VirtualControlInput, staff: dict = Depends(require_permission("events.manage"))):
     current = await db.events.find_one({"id": match_id, "sport": "Virtual Football"})
     if not current: raise HTTPException(status_code=404, detail="Virtual match not found")
@@ -841,7 +890,7 @@ async def settle_event_bets(event_id: str, result: str):
         )
 
 
-@api_router.post("/bets")
+@router.post("/bets")
 async def place_demo_bet(body: BetInput, user: dict = Depends(get_current_user)):
     event = await db.events.find_one({"id": body.event_id})
     if not event:
@@ -873,7 +922,7 @@ async def place_demo_bet(body: BetInput, user: dict = Depends(get_current_user))
     return {"bet": bet_public(bet, event), "balance": round(updated.get("balance", 0.0), 2), "demo": True}
 
 
-@api_router.get("/bets")
+@router.get("/bets")
 async def list_demo_bets(user: dict = Depends(get_current_user)):
     docs = await db.bets.find({"user_id": str(user["_id"])}).sort("created_at", -1).to_list(200)
     result = []
@@ -883,7 +932,7 @@ async def list_demo_bets(user: dict = Depends(get_current_user)):
     return result
 
 
-@api_router.patch("/admin/events/{event_id}/control")
+@router.patch("/admin/events/{event_id}/control")
 async def control_event(event_id: str, body: EventControlInput, staff: dict = Depends(require_permission("events.manage"))):
     current = await db.events.find_one({"id": event_id, "sport": {"$ne": "Virtual Football"}})
     if not current:
@@ -928,7 +977,7 @@ async def control_event(event_id: str, body: EventControlInput, staff: dict = De
     return event_public(updated)
 
 
-@api_router.post("/events/{event_id}/booking-code")
+@router.post("/events/{event_id}/booking-code")
 async def generate_event_booking_code(event_id: str, user: dict = Depends(get_current_user)):
     event = await db.events.find_one({"id": event_id})
     if not event:
@@ -938,7 +987,7 @@ async def generate_event_booking_code(event_id: str, user: dict = Depends(get_cu
     return {"event_id": event_id, "booking_code": code}
 
 
-@api_router.post("/admin/events/{event_id}/settle")
+@router.post("/admin/events/{event_id}/settle")
 async def settle_event(event_id: str, body: BetSettlementInput, staff: dict = Depends(require_permission("events.manage"))):
     event = await db.events.find_one({"id": event_id})
     if not event:
@@ -1014,7 +1063,7 @@ async def settle_ticket_event(event_id: str, result: str):
                 await db.transactions.insert_one({"id":str(uuid.uuid4()),"reference":f"NB-SET-{ticket['id'][:10].upper()}","user_id":ticket["user_id"],"type":"bet_settlement","amount":ticket["payout"],"method":"demo_wallet","status":"completed","ticket_id":ticket["id"],"created_at":datetime.now(timezone.utc).isoformat()})
         await db.tickets.update_one({"_id":ticket["_id"]},{"$set":{"selections":ticket["selections"],"status":ticket["status"],"payout":ticket.get("payout",0),"paid":ticket.get("paid",False),"settled_at":datetime.now(timezone.utc).isoformat() if ticket["status"] in ("won","lost") else None}})
 
-@api_router.post("/tickets")
+@router.post("/tickets")
 async def create_ticket(body: TicketInput, user: dict = Depends(get_current_user)):
     ids=[x.event_id for x in body.selections]
     if len(ids)!=len(set(ids)): raise HTTPException(status_code=400, detail="A ticket cannot contain the same match twice")
@@ -1036,13 +1085,13 @@ async def create_ticket(body: TicketInput, user: dict = Depends(get_current_user
     await db.tickets.insert_one(doc)
     return {"ticket":await ticket_public(doc)}
 
-@api_router.get("/tickets/verify/{booking_code}")
+@router.get("/tickets/verify/{booking_code}")
 async def verify_ticket(booking_code:str):
     doc=await db.tickets.find_one({"booking_code":booking_code.strip().upper()})
     if not doc: raise HTTPException(status_code=404, detail="Booking code not found")
     return {"ticket":await ticket_public(doc)}
 
-@api_router.post("/tickets/verify")
+@router.post("/tickets/verify")
 async def verify_ticket_status(body: TicketVerifyInput):
     """Public ticket verification endpoint used by the Verify Ticket modal.
 
@@ -1088,7 +1137,7 @@ async def verify_ticket_status(body: TicketVerifyInput):
     }
     return {"verification": {"status": status, "message": message, "verified_at": verified_at, "ticket": ticket}}
 
-@api_router.post("/tickets/{booking_code}/place")
+@router.post("/tickets/{booking_code}/place")
 async def place_ticket(booking_code:str, body:dict, user:dict=Depends(get_current_user)):
     # A booking code is a reusable shareable bet template. Every user who
     # places it gets a separate ticket/verify code, stake, wallet deduction
@@ -1132,7 +1181,7 @@ async def place_ticket(booking_code:str, body:dict, user:dict=Depends(get_curren
     await db.transactions.insert_one({"id":str(uuid.uuid4()),"reference":f"NB-T-{ticket_id[:10].upper()}","user_id":str(user["_id"]),"type":"bet_stake","amount":stake,"method":"demo_wallet","status":"completed","ticket_id":ticket_id,"booking_code":code,"created_at":now})
     return {"ticket":await ticket_public(placed),"balance":round(updated.get("balance",0),2)}
 
-@api_router.get("/tickets")
+@router.get("/tickets")
 async def list_tickets(user:dict=Depends(get_current_user)):
     docs=await db.tickets.find({"user_id":str(user["_id"]), "status":{"$ne":"booked"}}).sort("created_at",-1).to_list(200)
     result=[]
@@ -1144,7 +1193,7 @@ async def list_tickets(user:dict=Depends(get_current_user)):
     return result
 
 # ------------------------------------------------------------------ auth routes
-@api_router.post("/auth/register")
+@router.post("/auth/register")
 async def register(body: RegisterInput):
     if body.password != body.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
@@ -1164,7 +1213,7 @@ async def register(body: RegisterInput):
     token = create_access_token(str(res.inserted_id), email)
     return {"token": token, "user": public_user(doc), "referrer": {"name": referrer.get("name", ""), "role": referrer.get("role")}}
 
-@api_router.post("/auth/login")
+@router.post("/auth/login")
 async def login(body: LoginInput):
     identifier = body.identifier.strip().lower()
     user = await db.users.find_one({"$or": [{"email": identifier}, {"phone": body.identifier.strip()}]})
@@ -1173,7 +1222,7 @@ async def login(body: LoginInput):
     token = create_access_token(str(user["_id"]), user.get("email", ""))
     return {"token": token, "user": public_user(user)}
 
-@api_router.get("/auth/me")
+@router.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     return public_user(user)
 
@@ -1192,7 +1241,7 @@ def txn_public(d: dict) -> dict:
     }
 
 
-@api_router.get("/wallet/status")
+@router.get("/wallet/status")
 async def wallet_status(user: dict = Depends(get_current_user)):
     s = await get_settings()
     fresh = await db.users.find_one({"_id": user["_id"]})
@@ -1227,7 +1276,7 @@ async def wallet_status(user: dict = Depends(get_current_user)):
     }
 
 
-@api_router.get("/wallet/payment-methods")
+@router.get("/wallet/payment-methods")
 async def wallet_payment_methods(user: dict = Depends(get_current_user)):
     settings = await get_settings()
     return public_payment_methods(settings)
@@ -1237,7 +1286,7 @@ async def _reject_legacy_deposit_method(method: str):
     raise HTTPException(status_code=400, detail="Unsupported deposit method. Only MTN MoMo Manual, Telecel Cash Manual and Bank Transfer Manual are accepted.")
 
 
-@api_router.post("/wallet/deposit")
+@router.post("/wallet/deposit")
 async def deposit(body: DepositInput, user: dict = Depends(get_current_user)):
     if not math.isfinite(body.amount):
         raise HTTPException(status_code=400, detail="Amount must be a finite number")
@@ -1290,12 +1339,12 @@ async def deposit(body: DepositInput, user: dict = Depends(get_current_user)):
     return {"id": txn["id"], "reference": txn["reference"], "status": "pending", "message": "Deposit submitted for review. Your wallet will be credited only after approval."}
 
 
-@api_router.post("/wallet/deposit/manual")
+@router.post("/wallet/deposit/manual")
 async def legacy_manual_deposit_rejected(request: Request):
     raise HTTPException(status_code=410, detail="The legacy manual deposit endpoint is disabled. Use /wallet/deposit with mtn_manual, telecel_manual or bank_transfer_manual.")
 
 
-@api_router.post("/wallet/withdraw")
+@router.post("/wallet/withdraw")
 async def withdraw(body: WithdrawInput, user: dict = Depends(get_current_user)):
     if not math.isfinite(body.amount):
         raise HTTPException(status_code=400, detail="Amount must be a finite number")
@@ -1343,7 +1392,7 @@ async def withdraw(body: WithdrawInput, user: dict = Depends(get_current_user)):
     return {"balance": new_balance, "withdrawn": round(body.amount, 2), "status": "pending", "reference": txn["reference"]}
 
 
-@api_router.get("/wallet/transactions")
+@router.get("/wallet/transactions")
 async def wallet_transactions(user: dict = Depends(get_current_user)):
     docs = await db.transactions.find({"user_id": str(user["_id"])}).sort("created_at", -1).to_list(200)
     return [txn_public(d) for d in docs]
@@ -1368,7 +1417,7 @@ def staff_public(doc: dict) -> dict:
     }
 
 
-@api_router.get("/referrals/me")
+@router.get("/referrals/me")
 async def referral_profile(user: dict = Depends(require_staff)):
     if user.get("role") not in ("admin", "sub_admin"):
         # Super Admin can also have a referral code, but this endpoint remains useful for the staff UI.
@@ -1383,7 +1432,7 @@ async def referral_profile(user: dict = Depends(require_staff)):
     return {"referral_code": code, "role": user.get("role"), "commission_rate": rate, "commission_total": round(user.get("commission_total", 0.0), 2) if user.get("role") == "sub_admin" else 0.0, "referred_deposit_count": deposits}
 
 
-@api_router.get("/staff/commissions")
+@router.get("/staff/commissions")
 async def staff_commissions(user: dict = Depends(require_staff)):
     if user.get("role") != "sub_admin":
         return {"commission_rate": 0.0, "today": 0.0, "all_time": 0.0, "ledger": []}
@@ -1401,7 +1450,7 @@ async def staff_commissions(user: dict = Depends(require_staff)):
     return {"commission_rate": REFERRAL_COMMISSION_RATE, "today": today_total, "all_time": all_time, "ledger": rows}
 
 
-@api_router.post("/staff/demo-credit")
+@router.post("/staff/demo-credit")
 async def demo_credit(body: DemoCreditInput, user: dict = Depends(require_staff)):
     amount = round(float(body.amount), 2)
     updated = await db.users.find_one_and_update({"_id": user["_id"], "role": {"$in": list(STAFF_ROLES)}}, {"$inc": {"balance": amount}}, return_document=ReturnDocument.AFTER)
@@ -1412,14 +1461,14 @@ async def demo_credit(body: DemoCreditInput, user: dict = Depends(require_staff)
     return {"ok": True, "demo_balance": round(updated.get("balance", 0.0), 2)}
 
 
-@api_router.get("/admin/payout-accounts")
+@router.get("/admin/payout-accounts")
 async def read_payout_accounts(staff: dict = Depends(require_staff)):
     doc = await db.settings.find_one({"_id": "payout_accounts"}) or {}
     fields = ["mtn_name", "mtn_number", "telecel_name", "telecel_number", "bank_name", "bank_account_name", "bank_account_number", "bank_branch"]
     return {k: doc.get(k, "") for k in fields}
 
 
-@api_router.put("/admin/payout-accounts")
+@router.put("/admin/payout-accounts")
 async def update_payout_accounts(body: PayoutAccountsInput, admin: dict = Depends(require_admin)):
     values = {k: v.strip() for k, v in body.model_dump().items()}
     values["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -1428,7 +1477,7 @@ async def update_payout_accounts(body: PayoutAccountsInput, admin: dict = Depend
     return await read_payout_accounts(admin)
 
 
-@api_router.post("/admin/deposits/cleanup")
+@router.post("/admin/deposits/cleanup")
 async def cleanup_deposit_logs(body: DepositCleanupInput, super_admin: dict = Depends(require_super_admin)):
     cutoff = body.before
     if cutoff.tzinfo is None:
@@ -1441,7 +1490,7 @@ async def cleanup_deposit_logs(body: DepositCleanupInput, super_admin: dict = De
     return {"ok": True, "soft_deleted": result.modified_count, "before": cutoff_iso, "balances_untouched": True}
 
 
-@api_router.get("/staff/invite/{token}")
+@router.get("/staff/invite/{token}")
 async def inspect_staff_invite(token: str):
     invite = await db.settings.find_one({"_id": f"staff_invite:{token}"})
     if not invite:
@@ -1455,13 +1504,13 @@ async def inspect_staff_invite(token: str):
     return {"valid": True, "name": target.get("name", ""), "email": target.get("email", ""), "role": target.get("role"), "role_label": role_label(target.get("role", "user")), "expires_at": invite["expires_at"]}
 
 
-@api_router.get("/admin/staff")
+@router.get("/admin/staff")
 async def list_staff(manager: dict = Depends(require_admin)):
     docs = await db.users.find({"role": {"$in": ["super_admin", "admin", "sub_admin"]}}).sort("created_at", -1).to_list(500)
     return [staff_public(d) for d in docs]
 
 
-@api_router.post("/admin/staff")
+@router.post("/admin/staff")
 async def create_staff(body: StaffCreateInput, manager: dict = Depends(require_admin)):
     if manager.get("role") == "admin" and body.role != "sub_admin":
         raise HTTPException(status_code=403, detail="Admins can only create Sub-Admin accounts")
@@ -1478,7 +1527,7 @@ async def create_staff(body: StaffCreateInput, manager: dict = Depends(require_a
     return staff_public(doc)
 
 
-@api_router.put("/admin/staff/{user_id}")
+@router.put("/admin/staff/{user_id}")
 async def update_staff(user_id: str, body: StaffUpdateInput, manager: dict = Depends(require_admin)):
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user id")
@@ -1502,7 +1551,7 @@ async def update_staff(user_id: str, body: StaffUpdateInput, manager: dict = Dep
     return staff_public(updated)
 
 
-@api_router.delete("/admin/staff/{user_id}")
+@router.delete("/admin/staff/{user_id}")
 async def delete_staff(user_id: str, manager: dict = Depends(require_admin)):
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user id")
@@ -1517,7 +1566,7 @@ async def delete_staff(user_id: str, manager: dict = Depends(require_admin)):
     return {"ok": True}
 
 
-@api_router.post("/admin/staff/{user_id}/invite")
+@router.post("/admin/staff/{user_id}/invite")
 async def create_staff_invite(user_id: str, expires_hours: int = 24, manager: dict = Depends(require_admin)):
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user id")
@@ -1534,13 +1583,13 @@ async def create_staff_invite(user_id: str, expires_hours: int = 24, manager: di
 
 
 # ------------------------------------------------------------------ settings & staff
-@api_router.get("/settings")
+@router.get("/settings")
 async def read_settings(user: dict = Depends(get_current_user)):
     settings = await get_settings()
     return {k: settings[k] for k in ("min_deposit", "min_withdrawal", "first_deposit_bonus_cap")}
 
 
-@api_router.put("/admin/settings")
+@router.put("/admin/settings")
 async def update_settings(body: SettingsInput, admin: dict = Depends(require_admin)):
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if "min_deposit" in updates and updates["min_deposit"] < 300:
@@ -1552,13 +1601,13 @@ async def update_settings(body: SettingsInput, admin: dict = Depends(require_adm
     return await get_settings()
 
 
-@api_router.get("/admin/payment-methods")
+@router.get("/admin/payment-methods")
 async def admin_payment_methods(super_admin: dict = Depends(require_super_admin)):
     settings = await get_settings()
     return public_payment_methods(settings, include_inactive=True)
 
 
-@api_router.put("/admin/payment-methods")
+@router.put("/admin/payment-methods")
 async def update_payment_methods(body: PaymentMethodConfigInput, super_admin: dict = Depends(require_super_admin)):
     settings = await get_settings()
     current = settings["payment_methods"]
@@ -1591,7 +1640,7 @@ async def update_payment_methods(body: PaymentMethodConfigInput, super_admin: di
     return list(merged.values())
 
 
-@api_router.get("/admin/transactions")
+@router.get("/admin/transactions")
 async def admin_transactions(status: Optional[str] = None, transaction_type: Optional[str] = None,
                              staff: dict = Depends(require_permission("transactions.view"))):
     query = {"deposit_log_deleted": {"$ne": True}}
@@ -1608,7 +1657,7 @@ async def admin_transactions(status: Optional[str] = None, transaction_type: Opt
     return [{**txn_public(d), "user": users.get(d.get("user_id"), {})} for d in docs]
 
 
-@api_router.post("/admin/transactions/{transaction_id}/review")
+@router.post("/admin/transactions/{transaction_id}/review")
 async def review_transaction(transaction_id: str, action: Literal["approve", "reject"],
                              reason: str = "", staff: dict = Depends(require_admin)):
     txn = await db.transactions.find_one({"id": transaction_id})
@@ -1716,7 +1765,7 @@ async def review_transaction(transaction_id: str, action: Literal["approve", "re
     return {"ok": True, "status": "rejected"}
 
 
-@api_router.get("/admin/users")
+@router.get("/admin/users")
 async def list_users(admin: dict = Depends(require_permission("users.view"))):
     docs = await db.users.find().sort("created_at", -1).to_list(500)
     return [
@@ -1728,7 +1777,7 @@ async def list_users(admin: dict = Depends(require_permission("users.view"))):
     ]
 
 
-@api_router.put("/admin/users/{user_id}/role")
+@router.put("/admin/users/{user_id}/role")
 async def set_user_role(user_id: str, body: RoleInput, admin: dict = Depends(require_permission("users.manage"))):
     if body.role not in ("user", "sub_admin", "admin"):
         raise HTTPException(status_code=400, detail="Invalid role")
@@ -1751,7 +1800,7 @@ async def set_user_role(user_id: str, body: RoleInput, admin: dict = Depends(req
     return {"ok": True, "role": body.role, "permissions": updates["permissions"], "referral_code": updates.get("referral_code", target.get("referral_code", ""))}
 
 
-@api_router.get("/admin/reports/summary")
+@router.get("/admin/reports/summary")
 async def reports_summary(staff: dict = Depends(require_permission("reports.view"))):
     pending = await db.transactions.count_documents({"status": "pending"})
     approved_deposits = await db.transactions.aggregate([
@@ -1770,12 +1819,12 @@ async def reports_summary(staff: dict = Depends(require_permission("reports.view
         "events": await db.events.count_documents({}),
     }
 
-@api_router.get("/admin/promotions")
+@router.get("/admin/promotions")
 async def read_promotions(admin: dict = Depends(require_permission("promotions.manage"))):
     doc = await db.settings.find_one({"_id": "promotions"}) or {}
     return {"enabled": bool(doc.get("enabled", False)), "message": doc.get("message", "")[:200]}
 
-@api_router.put("/admin/promotions")
+@router.put("/admin/promotions")
 async def update_promotions(enabled: bool, message: str = "", admin: dict = Depends(require_permission("promotions.manage"))):
     message = message.strip()[:200]
     await db.settings.update_one({"_id": "promotions"}, {"$set": {"enabled": enabled, "message": message}}, upsert=True)
@@ -1843,7 +1892,7 @@ async def hydrate_event_team_assets(doc: dict) -> dict:
         doc.update(updates)
     return doc
 
-@api_router.get("/leagues")
+@router.get("/leagues")
 async def list_leagues():
     rows=[]
     for slug, league in LEAGUE_CATALOG.items():
@@ -1853,7 +1902,7 @@ async def list_leagues():
         rows.append({"slug":slug,"name":league["name"],"country":league["country"],"season":league["season"],"team_count":len(league["teams"]),"teams":[{"name":t.get("name"),"logo_url":t.get("logo_url"),"team_id":t.get("provider_team_id")} for t in teams]})
     return rows
 
-@api_router.get("/leagues/{slug}")
+@router.get("/leagues/{slug}")
 async def league_detail(slug: str):
     league=LEAGUE_CATALOG.get(slug)
     if not league:
@@ -1863,7 +1912,7 @@ async def league_detail(slug: str):
         teams=[{"name":name,"logo_url":None,"provider_team_id":None} for name in league["teams"]]
     return {"slug":slug,"name":league["name"],"country":league["country"],"season":league["season"],"team_count":len(league["teams"]),"teams":[{"name":t.get("name"),"logo_url":t.get("logo_url"),"team_id":t.get("provider_team_id")} for t in teams]}
 
-@api_router.get("/events")
+@router.get("/events")
 async def list_events(sport: Optional[str] = None, q: Optional[str] = None,
                       status: Optional[str] = "open", limit: int = 40, skip: int = 0):
     query = {}
@@ -1884,7 +1933,7 @@ async def list_events(sport: Optional[str] = None, q: Optional[str] = None,
     docs = await asyncio.gather(*(hydrate_event_team_assets(d) for d in docs))
     return [event_public(d) for d in docs]
 
-@api_router.get("/events/meta")
+@router.get("/events/meta")
 async def events_meta():
     pipeline = [
         {"$match": {"status": "open"}},
@@ -1896,7 +1945,7 @@ async def events_meta():
     return {"sports": sports, "total": sum(s["count"] for s in sports)}
 
 
-@api_router.post("/admin/events")
+@router.post("/admin/events")
 async def create_event(body: EventInput, staff: dict = Depends(require_permission("events.manage"))):
     doc = {
         "id": str(uuid.uuid4()),
@@ -1923,7 +1972,7 @@ async def create_event(body: EventInput, staff: dict = Depends(require_permissio
     return event_public(doc)
 
 
-@api_router.put("/admin/events/{event_id}")
+@router.put("/admin/events/{event_id}")
 async def update_event(event_id: str, body: EventInput, staff: dict = Depends(require_permission("events.manage"))):
     values = {
         "sport": body.sport.strip(), "league": body.league.strip(),
@@ -1942,18 +1991,18 @@ async def update_event(event_id: str, body: EventInput, staff: dict = Depends(re
     return event_public(doc)
 
 
-@api_router.delete("/admin/events/{event_id}")
+@router.delete("/admin/events/{event_id}")
 async def delete_event(event_id: str, staff: dict = Depends(require_permission("events.manage"))):
     await db.events.delete_one({"id": event_id})
     return {"ok": True}
 
 
-@api_router.get("/admin/permissions")
+@router.get("/admin/permissions")
 async def available_permissions(admin: dict = Depends(require_admin)):
     return {"permissions": ALL_SUBADMIN_PERMISSIONS, "groups": ROLE_PERMISSIONS}
 
 
-@api_router.put("/admin/users/{user_id}/permissions")
+@router.put("/admin/users/{user_id}/permissions")
 async def set_user_permissions(user_id: str, body: PermissionsInput, admin: dict = Depends(require_admin)):
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user id")
@@ -2033,38 +2082,14 @@ async def seed_events():
         })
 
 
-@app.on_event("startup")
-async def on_startup():
-    await db.users.create_index("email", unique=True)
-    await db.users.create_index("referral_code", unique=True, sparse=True)
-    await db.events.create_index("id", unique=True)
-    await db.events.create_index("kickoff_at")
-    await db.transactions.create_index("transaction_reference", unique=True, sparse=True)
-    await db.audit_logs.create_index("at")
-    await seed_admin()
-    await normalize_legacy_football_events()
-    await seed_events()
-    await sync_league_catalog()
-    await db.settings.update_one({"_id": "global"}, {"$setOnInsert": DEFAULT_SETTINGS}, upsert=True)
-    logger.info("NexusBet backend ready")
 
 
-@api_router.get("/")
+
+@router.get("/")
 async def root():
     return {"message": "NexusBet API"}
 
 
-app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+

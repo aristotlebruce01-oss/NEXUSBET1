@@ -125,3 +125,49 @@ code, .font-mono { font-family: 'JetBrains Mono', monospace; }
     10% { opacity: 1; }
     100% { opacity: 0; transform: translate3d(0, 110vh, 0) rotate(760deg); }
 }
+
+
+/* Homepage promotional banner carousel */
+.nx-hero-carousel { position: relative; background: #05080c; border-radius: 12px; }
+.nx-hero-carousel-track { position: relative; width: 100%; aspect-ratio: 828 / 479; overflow: hidden; background: #05080c; }
+.nx-hero-carousel-slide {
+  position: absolute; inset: 0; display: block; width: 100%; height: 100%;
+  object-fit: cover; opacity: 0; transform: scale(1.015);
+  transition: opacity 650ms ease, transform 5.5s ease;
+  pointer-events: none;
+}
+.nx-hero-carousel-slide.is-active { opacity: 1; transform: scale(1); pointer-events: auto; }
+.nx-hero-arrow {
+  position: absolute; top: 50%; z-index: 2; transform: translateY(-50%);
+  width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255,255,255,.25); border-radius: 999px;
+  color: white; background: rgba(0,0,0,.38); opacity: 0; transition: opacity .2s ease, background .2s ease;
+}
+.nx-hero-carousel:hover .nx-hero-arrow, .nx-hero-carousel:focus-within .nx-hero-arrow { opacity: 1; }
+.nx-hero-arrow:hover { background: rgba(0,0,0,.72); }
+.nx-hero-arrow-left { left: 12px; } .nx-hero-arrow-right { right: 12px; }
+.nx-hero-dots { position: absolute; left: 0; right: 0; bottom: 12px; z-index: 3; display: flex; justify-content: center; align-items: center; gap: 9px; }
+.nx-hero-dot { width: 10px; height: 10px; border-radius: 999px; padding: 0; border: 0; background: rgba(255,255,255,.55); transition: width .25s ease, background .25s ease; }
+.nx-hero-dot.is-active { width: 30px; background: #00e5ff; }
+@media (max-width: 640px) {
+  .nx-hero-carousel-track { aspect-ratio: 828 / 479; }
+  .nx-hero-arrow { width: 30px; height: 30px; opacity: .85; }
+  .nx-hero-arrow-left { left: 6px; } .nx-hero-arrow-right { right: 6px; }
+  .nx-hero-dots { bottom: 7px; gap: 7px; }
+  .nx-hero-dot { width: 7px; height: 7px; }
+  .nx-hero-dot.is-active { width: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nx-hero-carousel-slide, .nx-hero-arrow, .nx-hero-dot { transition: none; }
+}
+
+
+
+/* Betting slip and Open Bets intentionally show team names only, never team crests. */
+.team-names-only img,
+.team-names-only svg,
+.team-names-only .team-logo,
+.team-names-only .team-crest,
+.team-names-only [data-team-logo] {
+  display: none !important;
+}

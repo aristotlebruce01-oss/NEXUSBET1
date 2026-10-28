@@ -38,8 +38,6 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }) {
     }
   };
 
-  const useDemo = () => { setEmail("admin@nexusbet.com"); setPassword("admin123"); };
-
   return (
     <AnimatePresence>
       {open && (
@@ -67,7 +65,7 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }) {
             </div>
             <h2 className="font-display text-2xl font-bold mt-4">{isSignup ? "Create account" : "Welcome back"}</h2>
             <p className="text-[#A29DBE] text-sm mt-1">
-              {isSignup ? "Create your NexusBet demo account with a virtual wallet." : "Log in to access your wallet and account tools."}
+              {isSignup ? "Create your NexusBet account with a virtual wallet." : "Log in to access your wallet and account tools."}
             </p>
 
             <form onSubmit={submit} className="mt-6 space-y-4">
@@ -140,12 +138,6 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }) {
                 {loading ? "Please wait..." : isSignup ? "Create account" : "Log in"}
               </button>
             </form>
-
-            {!isSignup && (
-              <button onClick={useDemo} data-testid="auth-demo-fill" className="mt-3 w-full text-xs text-[#00E5FF] hover:underline">
-                Use admin demo credentials
-              </button>
-            )}
 
             <p className="text-center text-sm text-[#A29DBE] mt-5">
               {isSignup ? "Already have an account?" : "New to NexusBet?"}{" "}

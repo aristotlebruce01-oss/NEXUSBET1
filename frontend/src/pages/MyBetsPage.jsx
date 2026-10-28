@@ -3,7 +3,6 @@ import { Ticket, WalletCards, Search, ChevronDown, ChevronUp } from "lucide-reac
 import { toast } from "sonner";
 import { api, formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import TeamLogo from "@/components/TeamLogo";
 
 const money=v=>`₵${Number(v||0).toFixed(2)}`;
 const marketLabel=(m,s)=>m==="match_result"?({home:"Home",draw:"Draw",away:"Away"}[s]||s):m==="double_chance"?(s==="dc_team_1"?"DC Team 1 / Draw":"DC Team 2 / Draw"):m==="correct_score"?`Correct score ${s}`:`HT Draw / ${s==="win1"?"Win 1":"Win 2"}`;
@@ -98,7 +97,7 @@ export default function MyBetsPage({onRefresh}){
 
         <div className="p-5 max-h-[420px] overflow-y-auto space-y-3">
           {selections.map((x,i)=>{const home=x.home||"Home",away=x.away||"Away";return <div key={String(x.event_id)+i} className="rounded-xl bg-black/20 border border-white/10 p-4">
-            <div className="flex items-center gap-3"><TeamLogo name={home} size={40}/><div className="min-w-0 flex-1 font-bold text-sm truncate">{home}</div><span className="text-[10px] font-black text-[#FFD700]">VS</span><div className="min-w-0 flex-1 font-bold text-sm text-right truncate">{away}</div><TeamLogo name={away} size={40}/></div>
+            <div className="flex items-center gap-3"><div className="min-w-0 flex-1 font-bold text-sm truncate">{home}</div><span className="text-[10px] font-black text-[#FFD700]">VS</span><div className="min-w-0 flex-1 font-bold text-sm text-right truncate">{away}</div></div>
             <div className="mt-3 flex items-center justify-between text-xs"><span className="text-[#A29DBE]">{marketLabel(x.market,x.selection)}</span><b className="text-[#00E5FF]">@ {Number(x.odds||0).toFixed(2)}</b></div>
           </div>})}
           {!selections.length&&<div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-[#6E688D]">Load a booking code or add selections from Sports. They will appear here.</div>}

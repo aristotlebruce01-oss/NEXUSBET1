@@ -9,6 +9,7 @@ import Navbar from "@/components/Navbar";
 import AuthModal from "@/components/AuthModal";
 import TicketTools from "@/components/TicketTools";
 import SportsPage from "@/pages/SportsPage";
+import LiveSports from "@/components/LiveSports";
 import CashierPage from "@/pages/CashierPage";
 import AdminPage from "@/pages/AdminPage";
 import MyBetsPage from "@/pages/MyBetsPage";
@@ -141,14 +142,14 @@ function Shell() {
         <Landing onSignup={() => openAuth("signup")} onLogin={() => openAuth("login")} />
       ) : (
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-wrap gap-2 mb-5 text-xs font-black uppercase tracking-wide">{["Home", "Live score update", "Sports", "Today matches", "Countdown", "Leagues", "Countries", "Virtual football"].map((label) => { const key = label.toLowerCase().replaceAll(" ", "-"); return <button type="button" key={label} onClick={() => { setSection(key); setTab("sports"); }} className={`rounded-full border px-3 py-2 transition-colors ${section === key ? "border-[#00E5FF] bg-[#00E5FF]/10 text-[#00E5FF]" : "border-white/10 bg-white/[0.03] text-[#A29DBE] hover:border-[#00E5FF] hover:text-[#00E5FF]"}`} aria-label={`Open ${label}`}>{label}</button>; })}</div>
+          <div className="flex flex-wrap gap-2 mb-5 text-xs font-black uppercase tracking-wide">{["Home", "Live score update", "Sports", "Real-world odds", "Today matches", "Countdown", "Leagues", "Countries", "Virtual football"].map((label) => { const key = label.toLowerCase().replaceAll(" ", "-"); return <button type="button" key={label} onClick={() => { setSection(key); setTab("sports"); }} className={`rounded-full border px-3 py-2 transition-colors ${section === key ? "border-[#00E5FF] bg-[#00E5FF]/10 text-[#00E5FF]" : "border-white/10 bg-white/[0.03] text-[#A29DBE] hover:border-[#00E5FF] hover:text-[#00E5FF]"}`} aria-label={`Open ${label}`}>{label}</button>; })}</div>
           <TicketTools />
           {tab === "my-bets" ? (
             <MyBetsPage />
           ) : tab === "open-bets" ? (
             <OpenBetPage />
           ) : tab === "sports" ? (
-            <SportsPage activeSection={section} />
+            section === "real-world-odds" ? <LiveSports /> : <SportsPage activeSection={section} />
           ) : tab === "cashier" ? (
             <CashierPage />
           ) : tab === "admin" && ["super_admin", "admin", "sub_admin"].includes(user.role) ? (

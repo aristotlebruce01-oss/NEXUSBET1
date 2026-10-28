@@ -2,7 +2,6 @@ import React,{useEffect,useState} from "react";
 import { Trophy, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiErrorDetail } from "@/lib/api";
-import TeamLogo from "@/components/TeamLogo";
 
 const money=v=>`₵${Number(v||0).toFixed(2)}`;
 const marketLabel=(m,s)=>m==="match_result"?({home:"Home",draw:"Draw",away:"Away"}[s]||s):m==="double_chance"?(s==="dc_team_1"?"DC Team 1 / Draw":"DC Team 2 / Draw"):m==="correct_score"?`Correct score ${s}`:`HT Draw / ${s==="win1"?"Win 1":"Win 2"}`;
@@ -24,8 +23,8 @@ export default function OpenBetPage(){
       <div><h3 className="font-black">{t.bet_type}</h3><p className="text-xs text-[#A29DBE]">Verify Code: {t.verify_code || t.booking_code}</p></div>
       <b className={t.status==="won"?"text-[#00FF87]":t.status==="lost"?"text-[#FF3366]":"text-[#FFD700]"}>{t.status.toUpperCase()} {t.status==="won"?"✅":t.status==="lost"?"❌":""}</b>
     </div>
-    <div className="mt-3 space-y-2">{(t.selections||[]).map((s,i)=><div key={s.event_id+i} className="rounded-lg bg-black/20 p-3 text-sm">
-      <div className="flex items-center gap-2"><TeamLogo name={s.home} size={30}/><div className="font-bold flex-1 truncate">{s.home}</div><span className="text-[10px] text-[#FFD700]">VS</span><div className="font-bold flex-1 text-right truncate">{s.away}</div><TeamLogo name={s.away} size={30}/></div>
+    <div className="mt-3 space-y-2">{(t.selections||[]).map((s,i)=><div key={s.event_id+i} className="team-names-only rounded-lg bg-black/20 p-3 text-sm">
+      <div className="flex items-center gap-2"><div className="font-bold flex-1 truncate">{s.home}</div><span className="text-[10px] text-[#FFD700]">VS</span><div className="font-bold flex-1 text-right truncate">{s.away}</div></div>
       <div className="text-xs text-[#A29DBE] mt-2">{marketLabel(s.market,s.selection)} · Odds {Number(s.odds||0).toFixed(2)} · <span className={s.event_status==="live"?"text-[#00FF87] font-black":"text-[#A29DBE]"}>{s.event_status==="live"?"LIVE":s.status}</span></div>
       <div className="text-xs mt-1">Score {s.score?.home??0}:{s.score?.away??0} {s.event_status==="live"&&<span className="text-[#00E5FF] font-black">· {s.minute??0}'</span>}</div>
     </div>)}</div>
