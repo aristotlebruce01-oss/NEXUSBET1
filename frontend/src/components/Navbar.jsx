@@ -1,88 +1,68 @@
-import React, { useState } from "react";
-import { motion } from "framer-motion";
-import { Zap, Wallet, LogOut, Trophy, ShieldCheck, Landmark, ClipboardList, ListChecks, HelpCircle, X, TicketCheck, Search, UserRound } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { CircleHelp, Search, Wallet, Home, ListFilter, Gamepad2, ListChecks, UserRound, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { api } from "@/lib/api";
 
-const TABS = [
-  { id: "sports", label: "Sports", icon: Trophy, testid: "nav-sports-tab" },
-  { id: "cashier", label: "Wallet /Deposit", icon: Landmark, testid: "nav-cashier-tab" },
-  { id: "my-bets", label: "My Bets", icon: ClipboardList, testid: "nav-my-bets-tab" },
-  { id: "open-bets", label: "Open Bets", icon: ListChecks, testid: "nav-open-bets-tab" },
-];
-
-export default function Navbar({ tab, setTab, onLogin, onSignup, onVerifyTicket, onSearch }) {
-  const { user, logout } = useAuth();
-  const [helpOpen, setHelpOpen] = useState(false);
+export default function Navbar({ tab, setTab, onLogin, onSignup, onTeamSearch }) {
+  const { user } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
-  React.useEffect(() => { const openHelp=()=>setHelpOpen(true); const doLogout=()=>logout(); window.addEventListener("nexus:open-help",openHelp); window.addEventListener("nexus:logout",doLogout); return()=>{window.removeEventListener("nexus:open-help",openHelp);window.removeEventListener("nexus:logout",doLogout)}; }, [logout]);
+  const [search, setSearch] = useState("");
+  const [openBetCount, setOpenBetCount] = useState(0);
   const isAuthed = user && typeof user === "object";
   const isStaff = isAuthed && ["super_admin", "admin", "sub_admin"].includes(user.role);
-  const tabs = isStaff ? [...TABS, { id: "admin", label: "Admin", icon: ShieldCheck, testid: "nav-admin-tab" }] : TABS;
+
+  useEffect(() => {
+    onTeamSearch?.(search);
+  }, [search, onTeamSearch]);
+
+  useEffect(() => {
+    if (!isAuthed) return undefined;
+    let active = true;
+    const loadCount = async () => {
+      try {
+        const r = await api.get("/tickets");
+        if (active) setOpenBetCount((Array.isArray(r.data) ? r.data : []).filter((t) => ["open", "active"].includes(String(t.status).toLowerCase())).length);
+      } catch { if (active) setOpenBetCount(0); }
+    };
+    loadCount();
+    const timer = setInterval(loadCount, 4000);
+    return () => { active = false; clearInterval(timer); };
+  }, [isAuthed]);
+
+  const navItems = [
+    { id: "sports", label: "Home", icon: Home },
+    { id: "az-menu", label: "A-Z Menu", icon: ListFilter },
+    { id: "games", label: "Games", icon: Gamepad2 },
+    { id: "open-bets", label: "Open Bets", icon: ListChecks, badge: openBetCount },
+    { id: "me", label: "Me", icon: UserRound },
+  ];
+  const openBrand = () => setTab(isStaff ? "admin" : "sports");
+  const goWallet = () => setTab("cashier");
 
   return (
     <>
       <header className="sticky top-0 z-50 nx-glass border-b border-[#00E5FF]/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          <button data-testid="navbar-brand-nexusbet" onClick={() => setTab("sports")} className="flex items-center gap-2 shrink-0">
-            <span className="nx-brand-shield">N</span>
-            <span className="font-display text-lg sm:text-xl font-extrabold tracking-tight">NEXUS<span className="text-[#00E5FF]">BET</span></span>
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-[62px] sm:h-16 flex items-center gap-2 sm:gap-3">
+          <button type="button" onClick={openBrand} aria-label={isStaff ? "Open admin dashboard" : "Go home"} title={isStaff ? `Open ${user.role.replaceAll("_", " ")} dashboard` : "Home"} className="flex items-center gap-2 shrink-0 min-w-0">
+            <span className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border-2 border-[#00E5FF] text-[#00E5FF] flex items-center justify-center font-black text-xl sm:text-2xl leading-none">N</span>
+            <span className="font-display text-[17px] sm:text-xl font-extrabold tracking-tight whitespace-nowrap">NEXUS<span className="text-[#00E5FF]">BET</span></span>
           </button>
-
-          {isAuthed && (
-            <nav className="hidden md:flex items-center gap-1 bg-[#0F0C20]/60 rounded-full p-1 border border-[#00E5FF]/10">
-              {tabs.map((t) => {
-                const Icon = t.icon;
-                const active = tab === t.id;
-                return <button key={t.id} data-testid={t.testid} onClick={() => setTab(t.id)} className={`relative px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1.5 transition-colors ${active ? "text-[#04121a]" : "text-[#A29DBE] hover:text-[#F0EEF9]"}`}>
-                  {active && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-full" style={{ background: "linear-gradient(135deg,#00E5FF,#00a6ff)" }} transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
-                  <Icon size={15} className="relative z-10" /><span className="relative z-10">{t.label}</span>
-                </button>;
-              })}
-              <button type="button" data-testid="nav-verify-ticket" onClick={onVerifyTicket} className="relative px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1.5 text-[#A29DBE] hover:text-[#F0EEF9] transition-colors">
-                <TicketCheck size={15} /><span>Verify Ticket</span>
-              </button>
-            </nav>
-          )}
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button data-testid="navbar-help-button" onClick={() => setHelpOpen(true)} title="Help & Responsible Betting" className="flex items-center gap-1.5 text-sm font-semibold text-[#F0EEF9] px-2 sm:px-3 py-2 hover:text-[#00E5FF] transition-colors">
-              <HelpCircle size={18} /><span className="hidden sm:inline">Help</span>
-            </button>
-            {isAuthed ? <>
-              <button type="button" onClick={()=>setTab("me")} aria-label="Open profile" className="p-2 text-[#A29DBE] hover:text-[#00E5FF]"><UserRound size={20}/></button><button type="button" onClick={()=>setSearchOpen(v=>!v)} aria-label="Search teams, leagues and matches" className="p-2 text-[#A29DBE] hover:text-[#00E5FF]"><Search size={20}/></button>
-              <div className="hidden sm:block">{searchOpen&&<input autoFocus value={searchValue} onChange={e=>{setSearchValue(e.target.value);onSearch?.(e.target.value)}} placeholder="Search teams, leagues, matches" className="w-48 lg:w-64 rounded-full border border-[#00E5FF]/30 bg-[#080d1b] px-3 py-2 text-xs text-white outline-none focus:border-[#00E5FF]"/>}</div>
-              <button type="button" onClick={()=>setTab("cashier")} data-testid="navbar-wallet-balance" className="flex items-center gap-2 bg-[#221c46] border border-[#FFD700]/30 rounded-full px-3 sm:px-4 py-1.5"><Wallet size={16} className="text-[#FFD700]" /><span className="font-mono font-bold text-[#FFD700] text-sm">₵{Number(user.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></button>
-              <button data-testid="navbar-logout-button" onClick={logout} title="Log out" className="text-[#A29DBE] hover:text-[#FF3366] transition-colors p-2"><LogOut size={18} /></button>
-            </> : <>
-              <button data-testid="navbar-login-button" onClick={onLogin} className="text-sm font-semibold text-[#F0EEF9] px-3 sm:px-4 py-2 hover:text-[#00E5FF] transition-colors">Log in</button>
-              <button data-testid="navbar-signup-button" onClick={onSignup} className="nx-btn-primary text-sm px-4 py-2">Sign up</button>
-            </>}
-          </div>
+          <div className="flex-1" />
+          {isAuthed && searchOpen && <input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search teams, leagues, matches" aria-label="Search teams, leagues and matches" className="min-w-0 w-[34vw] max-w-xs rounded-full border border-[#00E5FF]/40 bg-[#0B1020] px-3 py-2 text-xs sm:text-sm text-white outline-none focus:border-[#00E5FF]" />}
+          {isAuthed && <button type="button" onClick={() => { setSearchOpen((v) => !v); if (searchOpen) { setSearch(""); onTeamSearch?.(""); } }} aria-label="Search teams, leagues and matches" title="Search" className="shrink-0 p-2 text-[#A29DBE] hover:text-[#00E5FF]"><Search size={21} /></button>}
+          {isAuthed ? <button type="button" onClick={goWallet} data-testid="navbar-wallet-balance" aria-label="Open wallet and deposit" title="Wallet / Deposit" className="max-w-[126px] sm:max-w-[170px] shrink-0 flex items-center gap-1.5 rounded-full border border-[#FFD700]/35 bg-[#221c46] px-2.5 sm:px-3 py-2 hover:border-[#FFD700]">
+            <Wallet size={16} className="text-[#FFD700] shrink-0" />
+            <span className="font-mono font-bold text-[#FFD700] text-xs sm:text-sm whitespace-nowrap overflow-hidden text-ellipsis">₵{Number(user.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </button> : <div className="flex items-center gap-1.5"><button data-testid="navbar-login-button" onClick={onLogin} className="text-xs sm:text-sm font-semibold text-[#F0EEF9] px-2 py-2">Log in</button><button data-testid="navbar-signup-button" onClick={onSignup} className="nx-btn-primary text-xs sm:text-sm px-3 py-2">Sign up</button></div>}
         </div>
-
-        {isAuthed && searchOpen && <div className="px-4 pb-3 sm:hidden"><input autoFocus value={searchValue} onChange={e=>{setSearchValue(e.target.value);onSearch?.(e.target.value)}} placeholder="Search teams, leagues, matches" className="w-full rounded-xl border border-[#00E5FF]/30 bg-[#080d1b] px-3 py-2 text-sm text-white outline-none focus:border-[#00E5FF]"/></div>}
-        {isAuthed && <nav className="hidden md:flex items-center gap-1 px-3 pb-2 overflow-x-auto">
-          {tabs.map((t) => { const Icon=t.icon; const active=tab===t.id; return <button key={t.id} data-testid={`${t.testid}-mobile`} onClick={()=>setTab(t.id)} className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap transition-colors ${active?"bg-[#00E5FF] text-[#04121a]":"text-[#A29DBE] bg-[#221c46]"}`}><Icon size={14}/> {t.label}</button>; })}
-          <button type="button" data-testid="nav-verify-ticket-mobile" onClick={onVerifyTicket} className="px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap text-[#A29DBE] bg-[#221c46]"><TicketCheck size={14}/> Verify Ticket</button>
-        </nav>}
       </header>
 
-      {helpOpen && <div className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Help and responsible betting">
-        <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl nx-card border border-[#00E5FF]/30 shadow-2xl">
-          <div className="sticky top-0 z-10 flex items-center justify-between p-5 sm:p-6 bg-[#100d22]/95 backdrop-blur border-b border-white/10">
-            <div><div className="text-xs font-black uppercase tracking-[.2em] text-[#00E5FF]">NexusBet Help</div><h2 className="text-2xl sm:text-3xl font-black mt-1">Responsible Betting & Support</h2></div>
-            <button onClick={()=>setHelpOpen(false)} aria-label="Close help" className="p-2 rounded-full bg-white/5 text-[#A29DBE] hover:text-white"><X size={24}/></button>
-          </div>
-          <div className="p-5 sm:p-7 space-y-5 text-sm sm:text-base leading-7 text-[#E7E3F2]">
-            <div>🔞 <b>Age & KYC:</b> You must be 18+ to register; Bet verification is strictly required before betting or withdrawing. And bet responsibly.</div>
-            <div>💳 <b>Deposit & Loss Limits:</b> Set daily, weekly, or monthly spend caps to keep your gaming budget strictly under control.</div>
-            <div>⏱️ <b>Time-Out & Reality Checks:</b> Set automated session reminders or take short breaks to manage your time responsibly.</div>
-            <div>🚫 <b>Self-Exclusion & Support:</b> Easily block your account or access free, confidential helpline resources whenever you need.</div>
-          </div>
-          <div className="px-5 sm:px-7 pb-6 text-xs text-[#A29DBE]">If betting stops feeling manageable, take a break and seek support.</div>
-        </div>
-      </div>}
+      {isAuthed && <nav aria-label="Main navigation" className="nx-bottom-nav md:hidden fixed bottom-0 inset-x-0 z-[80] grid grid-cols-5 border-t border-[#00E5FF]/20 bg-[#070d19]/95 backdrop-blur-lg pb-[env(safe-area-inset-bottom)]">
+        {navItems.map(({ id, label, icon: Icon, badge }) => <button key={id} type="button" onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined} className={`relative min-w-0 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-bold ${tab === id ? "text-[#00E5FF]" : "text-[#A29DBE]"}`}>
+          <span className="relative"><Icon size={21} strokeWidth={tab === id ? 2.5 : 2} />{id === "open-bets" && badge > 0 && <span className="absolute -right-2 -top-2 min-w-[16px] h-4 px-1 rounded-full bg-[#FF3366] text-white text-[9px] leading-4 text-center">{badge > 99 ? "99+" : badge}</span>}</span>
+          <span className="truncate max-w-full">{label}</span>
+        </button>)}
+      </nav>}
     </>
   );
 }

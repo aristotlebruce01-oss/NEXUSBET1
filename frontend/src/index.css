@@ -172,13 +172,12 @@ code, .font-mono { font-family: 'JetBrains Mono', monospace; }
   display: none !important;
 }
 
-/* Fixed mobile-first primary navigation and compact branding */
-.nx-brand-shield{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:2px solid #00e5ff;border-radius:50%;color:#00e5ff;font-weight:1000;font-size:18px;box-shadow:0 0 12px #00e5ff35}
-.nx-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:80;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:7px max(8px,env(safe-area-inset-left)) calc(7px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-right));background:rgba(4,10,22,.97);border-top:1px solid rgba(0,229,255,.25);backdrop-filter:blur(18px)}
-.nx-bottom-nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;color:#9ca9bf;padding:3px 1px;font-size:10px;font-weight:700}
-.nx-bottom-nav button.active{color:#00e5ff}
-.nx-bottom-nav small{font-size:10px;white-space:nowrap}
-.nx-home-n{width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:2px solid currentColor;border-radius:50%;font-weight:1000;font-size:13px}
-@media(min-width:768px){.nx-bottom-nav{left:50%;right:auto;transform:translateX(-50%);width:min(560px,80vw);border:1px solid rgba(0,229,255,.25);border-bottom:0;border-radius:16px 16px 0 0}}
-html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
-body{ overflow-x:hidden; }
+/* Compact app navigation and profile actions */
+.nx-bottom-nav { box-shadow: 0 -8px 24px rgba(0,0,0,.28); }
+.me-link { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; border: 1px solid rgba(0,229,255,.14); border-radius: 12px; background: rgba(255,255,255,.025); padding: 14px; color: #f0eef9; text-align: left; }
+.me-link > svg { color: #00e5ff; }
+.me-link:focus-visible, .me-link:hover { border-color: rgba(0,229,255,.55); outline: none; }
+@media (max-width: 640px) {
+  .nx-bottom-nav button { min-height: 56px; }
+  .App main { overflow-wrap: anywhere; }
+}
