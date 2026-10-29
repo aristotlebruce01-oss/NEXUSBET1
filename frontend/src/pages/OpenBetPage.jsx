@@ -20,7 +20,7 @@ export default function OpenBetPage(){
 
   const ticketCard=t=><div key={t.id} className={`nx-card p-5 border ${t.status==="won"?"border-[#00FF87]/50":t.status==="lost"?"border-[#FF3366]/40":"border-white/10"}`}>
     <div className="flex justify-between gap-3">
-      <div><h3 className="font-black">{t.bet_type}</h3><p className="text-xs text-[#A29DBE]">Verify Code: {t.verify_code || t.booking_code}</p></div>
+      <div><h3 className="font-black">{t.bet_type}</h3></div>
       <b className={t.status==="won"?"text-[#00FF87]":t.status==="lost"?"text-[#FF3366]":"text-[#FFD700]"}>{t.status.toUpperCase()} {t.status==="won"?"✅":t.status==="lost"?"❌":""}</b>
     </div>
     <div className="mt-3 space-y-2">{(t.selections||[]).map((s,i)=><div key={s.event_id+i} className="team-names-only rounded-lg bg-black/20 p-3 text-sm">

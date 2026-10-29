@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, Wallet, LogOut, Trophy, ShieldCheck, Landmark, ClipboardList, ListChecks, HelpCircle, X, TicketCheck } from "lucide-react";
+import { Zap, Wallet, LogOut, Trophy, ShieldCheck, Landmark, ClipboardList, ListChecks, HelpCircle, X, TicketCheck, Search, UserRound } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const TABS = [
@@ -10,9 +10,12 @@ const TABS = [
   { id: "open-bets", label: "Open Bets", icon: ListChecks, testid: "nav-open-bets-tab" },
 ];
 
-export default function Navbar({ tab, setTab, onLogin, onSignup, onVerifyTicket }) {
+export default function Navbar({ tab, setTab, onLogin, onSignup, onVerifyTicket, onSearch }) {
   const { user, logout } = useAuth();
   const [helpOpen, setHelpOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+  React.useEffect(() => { const openHelp=()=>setHelpOpen(true); const doLogout=()=>logout(); window.addEventListener("nexus:open-help",openHelp); window.addEventListener("nexus:logout",doLogout); return()=>{window.removeEventListener("nexus:open-help",openHelp);window.removeEventListener("nexus:logout",doLogout)}; }, [logout]);
   const isAuthed = user && typeof user === "object";
   const isStaff = isAuthed && ["super_admin", "admin", "sub_admin"].includes(user.role);
   const tabs = isStaff ? [...TABS, { id: "admin", label: "Admin", icon: ShieldCheck, testid: "nav-admin-tab" }] : TABS;
@@ -22,7 +25,7 @@ export default function Navbar({ tab, setTab, onLogin, onSignup, onVerifyTicket 
       <header className="sticky top-0 z-50 nx-glass border-b border-[#00E5FF]/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <button data-testid="navbar-brand-nexusbet" onClick={() => setTab("sports")} className="flex items-center gap-2 shrink-0">
-            <Zap size={24} className="text-[#00E5FF]" fill="#00E5FF" />
+            <span className="nx-brand-shield">N</span>
             <span className="font-display text-lg sm:text-xl font-extrabold tracking-tight">NEXUS<span className="text-[#00E5FF]">BET</span></span>
           </button>
 
@@ -47,7 +50,9 @@ export default function Navbar({ tab, setTab, onLogin, onSignup, onVerifyTicket 
               <HelpCircle size={18} /><span className="hidden sm:inline">Help</span>
             </button>
             {isAuthed ? <>
-              <div data-testid="navbar-wallet-balance" className="flex items-center gap-2 bg-[#221c46] border border-[#FFD700]/30 rounded-full px-3 sm:px-4 py-1.5"><Wallet size={16} className="text-[#FFD700]" /><span className="font-mono font-bold text-[#FFD700] text-sm">₵{Number(user.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+              <button type="button" onClick={()=>setTab("me")} aria-label="Open profile" className="p-2 text-[#A29DBE] hover:text-[#00E5FF]"><UserRound size={20}/></button><button type="button" onClick={()=>setSearchOpen(v=>!v)} aria-label="Search teams, leagues and matches" className="p-2 text-[#A29DBE] hover:text-[#00E5FF]"><Search size={20}/></button>
+              <div className="hidden sm:block">{searchOpen&&<input autoFocus value={searchValue} onChange={e=>{setSearchValue(e.target.value);onSearch?.(e.target.value)}} placeholder="Search teams, leagues, matches" className="w-48 lg:w-64 rounded-full border border-[#00E5FF]/30 bg-[#080d1b] px-3 py-2 text-xs text-white outline-none focus:border-[#00E5FF]"/>}</div>
+              <button type="button" onClick={()=>setTab("cashier")} data-testid="navbar-wallet-balance" className="flex items-center gap-2 bg-[#221c46] border border-[#FFD700]/30 rounded-full px-3 sm:px-4 py-1.5"><Wallet size={16} className="text-[#FFD700]" /><span className="font-mono font-bold text-[#FFD700] text-sm">₵{Number(user.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></button>
               <button data-testid="navbar-logout-button" onClick={logout} title="Log out" className="text-[#A29DBE] hover:text-[#FF3366] transition-colors p-2"><LogOut size={18} /></button>
             </> : <>
               <button data-testid="navbar-login-button" onClick={onLogin} className="text-sm font-semibold text-[#F0EEF9] px-3 sm:px-4 py-2 hover:text-[#00E5FF] transition-colors">Log in</button>
@@ -56,7 +61,8 @@ export default function Navbar({ tab, setTab, onLogin, onSignup, onVerifyTicket 
           </div>
         </div>
 
-        {isAuthed && <nav className="md:hidden flex items-center gap-1 px-3 pb-2 overflow-x-auto">
+        {isAuthed && searchOpen && <div className="px-4 pb-3 sm:hidden"><input autoFocus value={searchValue} onChange={e=>{setSearchValue(e.target.value);onSearch?.(e.target.value)}} placeholder="Search teams, leagues, matches" className="w-full rounded-xl border border-[#00E5FF]/30 bg-[#080d1b] px-3 py-2 text-sm text-white outline-none focus:border-[#00E5FF]"/></div>}
+        {isAuthed && <nav className="hidden md:flex items-center gap-1 px-3 pb-2 overflow-x-auto">
           {tabs.map((t) => { const Icon=t.icon; const active=tab===t.id; return <button key={t.id} data-testid={`${t.testid}-mobile`} onClick={()=>setTab(t.id)} className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap transition-colors ${active?"bg-[#00E5FF] text-[#04121a]":"text-[#A29DBE] bg-[#221c46]"}`}><Icon size={14}/> {t.label}</button>; })}
           <button type="button" data-testid="nav-verify-ticket-mobile" onClick={onVerifyTicket} className="px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap text-[#A29DBE] bg-[#221c46]"><TicketCheck size={14}/> Verify Ticket</button>
         </nav>}

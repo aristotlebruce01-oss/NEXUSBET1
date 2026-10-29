@@ -6,6 +6,7 @@ const slides = [
   { src: "/champion-banner.jpeg", alt: "Bet like a champion — Boosted odds every day" },
   { src: "/live-now-banner.jpeg", alt: "Live now — Bet in play, cash out fast" },
   { src: "/football-every-day-banner.jpeg", alt: "Football every day — Back greatness, bet on the world's game" },
+  { src: "/nexusbet-feature-banner.jpeg", alt: "NexusBet featured football, sports and gaming promotion" },
 ];
 
 export default function HeroCarousel() {
