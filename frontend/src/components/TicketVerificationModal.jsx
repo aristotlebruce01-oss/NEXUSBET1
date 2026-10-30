@@ -66,19 +66,24 @@ function WinnerModal({ ticket, onVerifyAnother, onClose }) {
 
   return <motion.div className="fixed inset-0 z-[160] bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto" role="dialog" aria-modal="true" aria-label="Congratulations winning ticket">
     <Confetti />
-    <motion.div initial={{ opacity: 0, scale: 0.88, y: 25 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 180, damping: 18 }} className="relative w-full max-w-3xl overflow-hidden rounded-[30px] border border-[#FFD700]/45 bg-[#08070b] shadow-[0_0_90px_rgba(255,215,0,0.25)]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,215,0,0.2),transparent_42%)] pointer-events-none" />
+    <motion.div initial={{ opacity: 0, scale: 0.88, y: 25 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 180, damping: 18 }} className="relative w-full max-w-xl max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-[28px] border border-[#FFD700]/55 bg-[#100d08] shadow-[0_0_90px_rgba(255,190,35,0.32)]">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_34%,rgba(191,137,22,0.34),rgba(75,52,9,0.22)_42%,transparent_76%)] pointer-events-none" />
       <button type="button" onClick={onClose} className="absolute right-4 top-4 z-20 p-2 rounded-full bg-black/50 border border-white/10 text-white/70 hover:text-white" aria-label="Close"><X size={22} /></button>
-      <div className="relative px-4 pt-7 sm:px-8 sm:pt-9 text-center">
+      <div className="relative px-4 pt-7 sm:px-8 sm:pt-8 text-center">
         <div className="text-[10px] sm:text-xs font-black uppercase tracking-[0.28em] text-[#FFD700]">NexusBet Winner</div>
-        <h2 className="mt-2 text-3xl sm:text-5xl font-black tracking-tight">Congratulations! Ticket Verified</h2>
+        <h2 className="mt-2 text-2xl sm:text-3xl font-black tracking-tight">Congratulations! Ticket Verified</h2>
+        <p className="mt-2 text-sm text-[#c8bdab]">Your ticket has been verified as a winning ticket.</p>
       </div>
 
-      <div className="relative mx-auto mt-3 w-[min(390px,88vw)] aspect-square overflow-hidden rounded-2xl">
-        <img src={CUP_IMAGE} alt="NexusBet Congratulations Cup — You are a winner" className="w-full h-full object-contain" />
+      <div className="relative mx-auto mt-2 w-[min(280px,72vw)] h-[250px] sm:h-[270px] overflow-hidden">
+        <img src={CUP_IMAGE} alt="NexusBet Congratulations Cup — You are a winner" className="w-full h-full object-contain mix-blend-screen" />
+      </div>
+      <div className="relative mx-auto -mt-1 mb-4 w-[min(300px,78vw)] rounded-xl border border-[#FFD700]/70 bg-black/85 px-4 py-3 shadow-[0_0_24px_rgba(255,190,35,0.24)]">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-[#c8bdab]">Verify Code</div>
+        <div className="mt-1 font-mono text-base sm:text-lg font-black tracking-[0.16em] text-[#FFD700] break-all">{verifyCode}</div>
       </div>
 
-      <div className="relative mx-4 sm:mx-8 mb-5 rounded-2xl border border-[#FFD700]/25 bg-[#FFD700]/[0.06] overflow-hidden">
+      <div className="relative mx-4 sm:mx-6 mb-5 rounded-2xl border border-[#FFD700]/25 bg-[#FFD700]/[0.06] overflow-hidden">
         <div className="grid grid-cols-2 sm:grid-cols-3">
           <Detail label="Ticket ID" value={ticketId} mono />
           <Detail label="Stake" value={money(ticket?.stake)} />
@@ -89,7 +94,7 @@ function WinnerModal({ ticket, onVerifyAnother, onClose }) {
         </div>
       </div>
 
-      <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-3 px-4 sm:px-8 pb-7">
+      <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-3 px-4 sm:px-6 pb-6">
         <button type="button" onClick={copyReceipt} className="rounded-xl border border-[#FFD700]/40 bg-[#FFD700]/10 py-3.5 font-black text-[#FFD700] hover:bg-[#FFD700]/15"><Copy size={16} className="inline mr-2" />Copy Winning Receipt</button>
         <button type="button" onClick={onVerifyAnother} className="nx-btn-primary py-3.5 font-black">Verify Another Ticket</button>
       </div>
