@@ -1,5 +1,5 @@
 import React,{useEffect,useState} from "react";
-import { Trophy, RefreshCw } from "lucide-react";
+import { Trophy, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiErrorDetail } from "@/lib/api";
 
@@ -16,7 +16,9 @@ export default function OpenBetPage(){
   useEffect(()=>{load();const t=setInterval(load,3000);return()=>clearInterval(t)},[]);
 
   const open=tickets.filter(t=>t.status==="open");
-  const history=tickets.filter(t=>["won","lost"].includes(t.status));
+  const history=tickets.filter(t=>["won","lost","void","cancelled"].includes(t.status));
+  const deleteOne=async(t)=>{if(!window.confirm("Delete this settled bet from your history? Transaction and wallet audit records will remain unchanged."))return;try{await api.delete(`/tickets/${encodeURIComponent(t.id)}`);setTickets(rows=>rows.filter(x=>x.id!==t.id));toast.success("Settled bet removed from history")}catch(e){toast.error(formatApiErrorDetail(e?.response?.data?.detail)||"Could not delete settled bet")}};
+  const clearHistory=async()=>{if(!history.length)return;if(!window.confirm("Clear all settled bets from your history? Open bets will not be deleted and wallet records will remain unchanged."))return;try{await api.delete("/tickets/history");setTickets(rows=>rows.filter(x=>!["won","lost","void","cancelled"].includes(x.status)));toast.success("Bet history cleared")}catch(e){toast.error(formatApiErrorDetail(e?.response?.data?.detail)||"Could not clear bet history")}};
 
   const ticketCard=t=><div key={t.id} className={`nx-card p-5 border ${t.status==="won"?"border-[#00FF87]/50":t.status==="lost"?"border-[#FF3366]/40":"border-white/10"}`}>
     <div className="flex justify-between gap-3">
@@ -30,6 +32,7 @@ export default function OpenBetPage(){
     </div>)}</div>
     <div className="grid grid-cols-3 gap-3 mt-4 text-sm"><div><span className="text-xs text-[#A29DBE] block">Stake</span><b>{money(t.stake)}</b></div><div><span className="text-xs text-[#A29DBE] block">Total odds</span><b>{Number(t.total_odds||1).toFixed(2)}</b></div><div><span className="text-xs text-[#A29DBE] block">{t.status==="won"?"Total return":"Potential win"}</span><b className="text-[#00FF87]">{money(t.status==="won"?t.payout:t.potential_win)}</b></div></div>
     {open.includes(t)&&<button disabled className="mt-4 w-full rounded-lg border border-white/10 py-2 text-xs text-[#A29DBE]">Cashout · Unavailable</button>}
+    {history.includes(t)&&<button onClick={()=>deleteOne(t)} className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/5 px-3 py-2 text-xs text-rose-300"><Trash2 size={13} className="inline mr-1"/>Delete from history</button>}
     {t.status==="won"&&<div className="mt-5 rounded-3xl bg-gradient-to-b from-[#FFD700]/20 via-[#FFD700]/10 to-transparent border-2 border-[#FFD700]/50 p-7 text-center shadow-[0_0_35px_rgba(255,215,0,.18)]"><div className="text-[11px] font-black uppercase tracking-[0.35em] text-[#FFD700]">Bet Won</div><div className="mt-2 text-7xl sm:text-8xl leading-none drop-shadow-[0_8px_20px_rgba(255,215,0,.35)]">🏆</div><div className="mt-2 text-3xl sm:text-4xl font-black tracking-wide text-[#FFD700]">NexusBet</div><div className="mt-1 text-2xl sm:text-3xl font-black text-white">CONGRATULATIONS!</div><div className="mt-4 text-sm text-[#A29DBE]">You won</div><div className="mt-1 text-3xl sm:text-4xl font-black text-[#00FF87]">{money(t.payout)}</div><div className="mt-2 text-xs text-[#A29DBE]">Exact total return credited to your wallet</div><Trophy className="mx-auto mt-4 text-[#FFD700]" size={32}/></div>}
   </div>;
 
@@ -37,7 +40,7 @@ export default function OpenBetPage(){
     <div className="nx-card p-5 flex justify-between items-center"><div><span className="text-xs uppercase font-black text-[#00E5FF]">Live ticket monitor</span><h1 className="text-3xl font-black mt-1">Open Bets</h1><p className="text-sm text-[#A29DBE] mt-1">Active tickets, settlement status and bet history appear here.</p></div><button onClick={load} className="nx-btn-primary p-2"><RefreshCw size={16}/></button></div>
     {loading?<div className="nx-card p-6">Loading...</div>:<>
       <div className="nx-card p-5"><div className="text-xs uppercase font-black text-[#00E5FF] mb-3">Open Bets</div>{open.length===0?<div className="text-sm text-[#A29DBE]">No open bets.</div>:<div className="space-y-4">{open.map(ticketCard)}</div>}</div>
-      <div className="nx-card p-5"><div className="text-xs uppercase font-black text-[#00E5FF] mb-3">Bet History</div>{history.length===0?<div className="text-sm text-[#A29DBE]">No settled bets yet.</div>:<div className="space-y-4">{history.map(ticketCard)}</div>}</div>
+      <div className="nx-card p-5"><div className="flex items-center justify-between gap-3 mb-3"><div className="text-xs uppercase font-black text-[#00E5FF]">Bet History</div>{history.length>0&&<button onClick={clearHistory} className="text-xs text-rose-300 border border-rose-400/30 rounded-lg px-3 py-2"><Trash2 size={13} className="inline mr-1"/>Clear history</button>}</div>{history.length===0?<div className="text-sm text-[#A29DBE]">No settled bets yet.</div>:<div className="space-y-4">{history.map(ticketCard)}</div>}</div>
     </>}
   </section>;
 }

@@ -8,9 +8,16 @@ export default function LiveSports() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(null);
+  const [liveScores, setLiveScores] = useState([]);
+  const [liveScoreError, setLiveScoreError] = useState("");
 
   const loadOdds = useCallback(async () => {
     setLoading(true); setError("");
+    const scoresTask = fetch(`${API_BASE}/api/live-scores`).then(async response => {
+      if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.detail || `Live scores request failed (${response.status})`); }
+      return response.json();
+    }).then(data => { setLiveScores(Array.isArray(data.matches) ? data.matches : []); setLiveScoreError(""); })
+      .catch(err => { setLiveScoreError(err.message || "Live scores are unavailable."); setLiveScores([]); });
     try {
       const response = await fetch(`${API_BASE}/api/odds`);
       if (!response.ok) {
@@ -21,10 +28,10 @@ export default function LiveSports() {
       setMatches(Array.isArray(data.matches) ? data.matches : []);
     } catch (err) {
       setError(err.message || "Could not load upcoming odds.");
-    } finally { setLoading(false); }
+    } finally { setLoading(false); await scoresTask; }
   }, []);
 
-  useEffect(() => { loadOdds(); }, [loadOdds]);
+  useEffect(() => { loadOdds(); const timer = setInterval(loadOdds, 60000); return () => clearInterval(timer); }, [loadOdds]);
   const fmtDate = value => value ? new Date(value).toLocaleString() : "Start time TBC";
 
   return <section className="nx-card p-5 space-y-4" aria-label="Real-world sports odds">
@@ -33,6 +40,12 @@ export default function LiveSports() {
         <h2 className="text-2xl font-black">Upcoming Matches &amp; Odds</h2>
         <p className="text-xs text-[#A29DBE] mt-1">Head-to-head prices from available bookmakers.</p></div>
       <button type="button" onClick={loadOdds} disabled={loading} aria-label="Refresh sports odds" className="nx-btn-primary p-2 rounded-lg"><RefreshCw size={16} className={loading ? "animate-spin" : ""}/></button>
+    </div>
+    <div className="rounded-xl border border-[#00FF87]/20 bg-[#00FF87]/5 p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-black uppercase tracking-wide text-[#00FF87]">Live score updates</h3><span className="text-[10px] text-[#A29DBE]">Refreshes every minute</span></div>
+      {liveScoreError && <p className="text-xs text-amber-300">{liveScoreError}</p>}
+      {!liveScoreError && liveScores.length===0 && <p className="text-xs text-[#A29DBE]">No live score feeds are currently available from the configured provider.</p>}
+      {liveScores.map(match=><div key={match.id} className="rounded-lg bg-black/20 p-3"><div className="flex justify-between gap-2 text-[10px] text-[#A29DBE]"><span>{match.sport_title}</span><span>{match.completed?"Finished":"Live feed"}</span></div><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mt-2 text-sm font-bold"><span className="truncate">{match.home_team}</span><b className="text-[#00FF87]">{match.home_score??"–"} : {match.away_score??"–"}</b><span className="truncate text-right">{match.away_team}</span></div></div>)}
     </div>
     {loading && <p className="text-sm text-[#A29DBE]">Loading upcoming matches…</p>}
     {!loading && error && <div className="text-sm text-rose-300" role="alert">{error} <button type="button" onClick={loadOdds} className="underline ml-2">Try again</button></div>}

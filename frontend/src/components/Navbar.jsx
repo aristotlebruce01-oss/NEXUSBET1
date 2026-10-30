@@ -59,7 +59,7 @@ export default function Navbar({ tab, setTab, onLogin, onSignup, onTeamSearch })
 
       {isAuthed && <nav aria-label="Main navigation" className="nx-bottom-nav md:hidden fixed bottom-0 inset-x-0 z-[80] grid grid-cols-5 border-t border-[#00E5FF]/20 bg-[#070d19]/95 backdrop-blur-lg pb-[env(safe-area-inset-bottom)]">
         {navItems.map(({ id, label, icon: Icon, badge }) => <button key={id} type="button" onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined} className={`relative min-w-0 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-bold ${tab === id ? "text-[#00E5FF]" : "text-[#A29DBE]"}`}>
-          <span className="relative"><Icon size={21} strokeWidth={tab === id ? 2.5 : 2} />{id === "open-bets" && badge > 0 && <span className="absolute -right-2 -top-2 min-w-[16px] h-4 px-1 rounded-full bg-[#FF3366] text-white text-[9px] leading-4 text-center">{badge > 99 ? "99+" : badge}</span>}</span>
+          <span className="relative">{id === "sports" ? <span className={`w-[21px] h-[21px] rounded-full border-2 flex items-center justify-center text-[12px] font-black leading-none ${tab === id ? "border-[#00E5FF] text-[#00E5FF]" : "border-[#A29DBE] text-[#A29DBE]"}`}>N</span> : <Icon size={21} strokeWidth={tab === id ? 2.5 : 2} />}{id === "open-bets" && badge > 0 && <span className="absolute -right-2 -top-2 min-w-[16px] h-4 px-1 rounded-full bg-[#FF3366] text-white text-[9px] leading-4 text-center">{badge > 99 ? "99+" : badge}</span>}</span>
           <span className="truncate max-w-full">{label}</span>
         </button>)}
       </nav>}
