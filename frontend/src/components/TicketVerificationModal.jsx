@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { api, formatApiErrorDetail } from "@/lib/api";
 
-const CUP_IMAGE = "/congratulations-cup.svg";
+const CUP_IMAGE = "/congratulations-cup.jpeg";
 const money = (value) => `₵${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function Confetti() {
@@ -72,21 +72,11 @@ function WinnerModal({ ticket, onVerifyAnother, onClose }) {
       <div className="relative px-4 pt-7 sm:px-8 sm:pt-9 text-center">
         <div className="text-[10px] sm:text-xs font-black uppercase tracking-[0.28em] text-[#FFD700]">NexusBet Winner</div>
         <h2 className="mt-2 text-3xl sm:text-5xl font-black tracking-tight">Congratulations! Ticket Verified</h2>
-        <p className="mt-2 text-sm text-[#A29DBE]">This ticket is recorded as WON in the NexusBet ticket ledger. This receipt reflects the application record, not an independent external guarantee.</p>
       </div>
 
-      <div className="relative mx-auto mt-3 w-[min(330px,82vw)] aspect-square overflow-hidden rounded-2xl">
-        <img src={CUP_IMAGE} alt="NexusBet Congratulations Cup" className="w-full h-full object-contain mix-blend-screen" />
-        <div className="absolute left-[18%] right-[18%] bottom-[8%] rounded-xl border border-[#FFD700]/55 bg-black/75 backdrop-blur px-3 py-2 shadow-[0_0_24px_rgba(255,215,0,0.3)]">
-          <div className="text-[9px] uppercase tracking-[0.2em] text-[#C9C1A4]">Verify Code</div>
-          <div className="mt-1 font-mono text-sm sm:text-base font-black tracking-widest text-[#FFD700] break-all">{verifyCode}</div>
-        </div>
+      <div className="relative mx-auto mt-3 w-[min(390px,88vw)] aspect-square overflow-hidden rounded-2xl">
+        <img src={CUP_IMAGE} alt="NexusBet Congratulations Cup — You are a winner" className="w-full h-full object-contain" />
       </div>
-
-      {Array.isArray(ticket?.selections) && ticket.selections.length > 0 && <div className="relative mx-4 sm:mx-8 mt-4 mb-4 rounded-2xl border border-[#00E5FF]/20 bg-[#00E5FF]/[0.04] p-4">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#00E5FF] mb-3">Winning match details</div>
-        <div className="space-y-2">{ticket.selections.map((leg, index) => <div key={`${leg.event_id || leg.home || "match"}-${index}`} className="flex items-center justify-between gap-3 text-sm border-b border-white/5 pb-2 last:border-0 last:pb-0"><div className="min-w-0"><div className="font-bold truncate">{leg.home || "Home"} <span className="text-[#FFD700]">vs</span> {leg.away || "Away"}</div><div className="text-[11px] text-[#A29DBE]">{leg.league || "Match"} · {leg.market || "Market"} · {leg.selection || "Selection"}</div></div><span className="shrink-0 text-xs font-black uppercase text-[#00FF87]">{String(leg.status || "pending").toUpperCase()}</span></div>)}</div>
-      </div>}
 
       <div className="relative mx-4 sm:mx-8 mb-5 rounded-2xl border border-[#FFD700]/25 bg-[#FFD700]/[0.06] overflow-hidden">
         <div className="grid grid-cols-2 sm:grid-cols-3">

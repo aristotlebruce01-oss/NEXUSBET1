@@ -11,7 +11,7 @@ export function BookingCodeLoader({compact=false}) {
   const load=async(e)=>{e.preventDefault();if(!code.trim())return;setLoading(true);try{const r=await api.get(`/tickets/verify/${encodeURIComponent(code.trim())}`);window.dispatchEvent(new CustomEvent("nexus:load-ticket",{detail:r.data.ticket}));toast.success("Booking code loaded into My Bet");}catch(err){toast.error(formatApiErrorDetail(err?.response?.data?.detail)||"Booking code not found");}finally{setLoading(false)}};
   return <section className={`nx-card border border-[#FFD700]/30 min-w-0 ${compact?"p-2 flex items-center gap-2":"p-4"}`} aria-label="Load booking code">
     <div className="min-w-0 flex-1">
-      <div className="text-[10px] sm:text-xs font-black uppercase tracking-wide text-[#FFD700]"><TicketCheck size={13} className="inline mr-1"/>Booking code</div>
+      <div className="text-[10px] sm:text-xs font-black uppercase tracking-wide text-[#FFD700]"><TicketCheck size={13} className="inline mr-1"/>Load booking code</div>
       {!compact&&<p className="text-xs text-[#A29DBE] mt-1">Load a saved booking into My Bet.</p>}
       <form onSubmit={load} className="mt-1 flex gap-1"><input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} className="min-w-0 w-full rounded-lg bg-black/20 border border-white/10 px-2 py-2 text-[10px] sm:text-xs" placeholder="NBM-XXXXXXXXXX" aria-label="Booking code"/><button aria-label="Load booking code" disabled={loading||!code.trim()} className="nx-btn-primary px-2 rounded-lg"><Search size={14}/></button></form>
     </div>
