@@ -190,3 +190,32 @@ code, .font-mono { font-family: 'JetBrains Mono', monospace; }
     line-height: 1.4;
   }
 }
+
+
+/* NexusBet homepage winner ticker and partner/payment footer */
+.nx-home-footer { overflow: hidden; background: #15171d; border-top: 1px solid rgba(0,229,255,.18); }
+.nx-grand-winners { background: #f7f7f8; color: #161820; padding-bottom: 20px; }
+.nx-grand-winners h2 { color: #20232b; }
+.nx-winner-marquee { overflow: hidden; width: 100%; }
+.nx-winner-track { display: flex; width: max-content; gap: 14px; padding: 0 14px; animation: nxWinnerScroll 34s linear infinite; }
+.nx-winner-marquee:hover .nx-winner-track { animation-play-state: paused; }
+.nx-winner-item { width: 245px; flex: 0 0 245px; }
+.nx-winner-card { min-height: 126px; padding: 16px; border-radius: 7px 7px 38px 7px; background: linear-gradient(135deg,#282b34,#151820); border: 1px solid rgba(255,255,255,.08); box-shadow: inset -35px -12px 0 rgba(255,255,255,.025); }
+@keyframes nxWinnerScroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.nx-footer-branding { background: #171a20; color: #e5e7eb; padding: 36px 20px 22px; text-align: center; }
+.nx-partner-lockup { display: flex; align-items: center; justify-content: center; gap: 14px; max-width: 560px; margin: 0 auto 48px; }
+.nx-footer-wordmark { color: #00c8ed; font-size: clamp(23px,5vw,36px); font-weight: 900; font-style: italic; white-space: nowrap; letter-spacing: -1.5px; }
+.nx-footer-wordmark span { color: #f4f6fa; }
+.nx-partner-copy { border-left: 2px solid #e5e7eb; border-right: 2px solid #e5e7eb; padding: 4px 12px; font-size: clamp(12px,2.6vw,17px); line-height: 1.15; text-align: left; font-weight: 700; white-space: nowrap; }
+.nx-laliga-mark { display: flex; flex-direction: column; align-items: center; color: #f04452; font-size: 14px; font-style: italic; line-height: 1; }
+.nx-laliga-symbol { font-size: 36px; font-weight: 900; transform: skew(-18deg); }
+.nx-payment-heading { margin: 0 auto 16px; font-size: 17px; color: #c7cbd3; }
+.nx-payment-methods { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; max-width: 440px; margin: 0 auto 42px; }
+.nx-payment-method { min-height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px; background: #20242c; border: 1px solid rgba(255,255,255,.04); border-radius: 6px; }
+.nx-payment-method img { width: 100%; height: 38px; object-fit: contain; }
+.nx-payment-method span { font-size: 11px; font-weight: 800; color: #e5e7eb; }
+.nx-responsible-copy { max-width: 760px; margin: 0 auto 34px; color: #c3c7ce; font-size: 13px; line-height: 1.55; }
+.nx-footer-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid rgba(255,255,255,.32); padding-top: 18px; color: #8f949e; font-size: 12px; }
+.nx-footer-bottom span:first-child { font-size: 20px; font-weight: 900; }
+@media(max-width:480px) { .nx-partner-lockup { gap: 9px; } .nx-partner-copy { padding: 3px 8px; } .nx-footer-branding { padding-left: 15px; padding-right: 15px; } .nx-winner-item { width: 225px; flex-basis: 225px; } }
+@media(prefers-reduced-motion:reduce) { .nx-winner-track { animation: none; } }

@@ -61,6 +61,7 @@ import TeamLogo from "@/components/TeamLogo";
 import VirtualTeamLogo from "@/components/VirtualTeamLogo";
 import LeagueCrest from "../components/LeagueCrest";
 import HeroCarousel from "@/components/HeroCarousel";
+import HomeFooter from "@/components/HomeFooter";
 
 const HERO = "/nexusbet-player-banner.jpg";
 
@@ -130,6 +131,7 @@ export default function SportsPage({ activeSection="home", teamSearch="" }) {
     <HeroCarousel />
     <div className="flex flex-wrap gap-2">{sports.map(s=>{const label=s==="all"?"All sports":s;const symbol=s==="all"?"🏅":s==="Football"?"⚽":s==="Basketball"?"🏀":s==="Tennis"?"🎾":"🏟️";return <button key={s} onClick={()=>setFilter(s)} aria-label={`Filter ${label}`} className={`rounded-full px-4 py-2 text-xs font-bold border inline-flex items-center gap-2 ${filter===s?"bg-[#00E5FF] text-black border-[#00E5FF]":"border-white/10 text-[#A29DBE]"}`}><span aria-hidden="true" className="text-sm leading-none">{symbol}</span><span>{label}</span></button>})}</div>
     {loading?<div className="nx-card p-8 text-center">Loading matches...</div>:<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{visible.map(e=><Card key={e.id} event={e}/>)}{visibleVirtual.map(e=><Card key={e.id} event={{...e,sport:"Virtual Football"}} isVirtual/>)}{!visible.length&&!visibleVirtual.length&&<div className="nx-card p-8 text-center lg:col-span-2"><Search size={22} className="mx-auto text-[#00E5FF] mb-2"/><p className="font-bold">{filter!=="all"&&["Basketball","Tennis"].includes(filter)?`No ${filter.toLowerCase()} matches scheduled at the moment`:"No matches found"}</p><p className="text-xs text-[#A29DBE] mt-1">{filter!=="all"&&["Basketball","Tennis"].includes(filter)?"Please check back when an event has been scheduled.":"Try another team name."}</p></div>}</div>}
+    {activeSection==="home" && <HomeFooter />}
     <div className={`fixed z-40 ${myBetOpen?"w-[min(430px,calc(100vw-1.5rem))]":"w-16"}`} style={myBetPosition ? {left:myBetPosition.x,top:myBetPosition.y,right:"auto",bottom:"auto",touchAction:"none"} : {right:12,bottom:76,touchAction:"none"}}>
       <div className="nx-card border-2 border-[#00E5FF]/50 shadow-2xl">
         <button type="button" onClick={()=>setMyBetOpen(v=>!v)} aria-expanded={myBetOpen} className="w-full p-4 flex items-center justify-between text-left hover:bg-white/[0.03] transition-colors">
