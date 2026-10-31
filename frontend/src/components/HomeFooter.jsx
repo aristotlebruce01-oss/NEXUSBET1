@@ -24,7 +24,6 @@ export default function HomeFooter() {
   return <footer className="nx-home-footer mt-8 -mx-3 sm:mx-0">
     <section className="nx-grand-winners" aria-label="Grand Prize Winners">
       <h2 className="px-4 sm:px-6 pt-5 pb-3 text-2xl font-black text-white">Grand Prize Winners</h2>
-      <p className="px-4 sm:px-6 pb-3 text-[10px] text-[#8F91A0]">Illustrative sample figures — not live or confirmed payouts.</p>
       <div className="nx-winner-marquee" aria-label="Sample winner highlights">
         <div className="nx-winner-track">{loop.map((winner, index) => <WinnerCard key={`${winner.user}-${index}`} winner={winner} />)}</div>
       </div>
@@ -34,7 +33,7 @@ export default function HomeFooter() {
       <div className="nx-partner-lockup">
         <div className="nx-footer-wordmark">Nexus<span>Bet</span></div>
         <div className="nx-partner-copy">Official Sports<br/>Betting Partner</div>
-        <div className="nx-laliga-mark"><span className="nx-laliga-symbol">◢◣</span><b>LALIGA</b></div>
+        <div className="nx-laliga-mark"><img src="/laliga-logo.jpeg" alt="LaLiga" /></div>
       </div>
       <div className="nx-payment-heading">Payment methods</div>
       <div className="nx-payment-methods">

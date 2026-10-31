@@ -207,8 +207,8 @@ code, .font-mono { font-family: 'JetBrains Mono', monospace; }
 .nx-footer-wordmark { color: #00c8ed; font-size: clamp(23px,5vw,36px); font-weight: 900; font-style: italic; white-space: nowrap; letter-spacing: -1.5px; }
 .nx-footer-wordmark span { color: #f4f6fa; }
 .nx-partner-copy { border-left: 2px solid #e5e7eb; border-right: 2px solid #e5e7eb; padding: 4px 12px; font-size: clamp(12px,2.6vw,17px); line-height: 1.15; text-align: left; font-weight: 700; white-space: nowrap; }
-.nx-laliga-mark { display: flex; flex-direction: column; align-items: center; color: #f04452; font-size: 14px; font-style: italic; line-height: 1; }
-.nx-laliga-symbol { font-size: 36px; font-weight: 900; transform: skew(-18deg); }
+.nx-laliga-mark { display: flex; align-items: center; justify-content: center; width: 76px; flex: 0 0 76px; }
+.nx-laliga-mark img { display: block; width: 100%; max-height: 78px; object-fit: contain; }
 .nx-payment-heading { margin: 0 auto 16px; font-size: 17px; color: #c7cbd3; }
 .nx-payment-methods { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; max-width: 440px; margin: 0 auto 42px; }
 .nx-payment-method { min-height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px; background: #20242c; border: 1px solid rgba(255,255,255,.04); border-radius: 6px; }
