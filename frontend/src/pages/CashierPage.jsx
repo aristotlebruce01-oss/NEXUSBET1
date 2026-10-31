@@ -17,7 +17,7 @@ const WITHDRAW_METHODS = [
   { id: "bank", label: "Bank Transfer", image: "/payment-methods/ghipss.png" },
 ];
 
-export default function CashierPage() {
+export default function CashierPage({ focusSection = null } = {}) {
   const { user, setBalance, reload } = useAuth();
   const [status, setStatus] = useState(null);
   const [txns, setTxns] = useState([]);
@@ -54,6 +54,12 @@ export default function CashierPage() {
       toast.error(formatApiErrorDetail(e?.response?.data?.detail) || "Unable to load wallet");
     }
   }, [depositMethod]);
+
+  useEffect(() => {
+    if (focusSection === "withdraw") {
+      document.getElementById("withdraw-options")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [focusSection]);
 
   useEffect(() => {
     load();
@@ -257,7 +263,7 @@ export default function CashierPage() {
         </div>
       </div>
 
-      <div className="nx-card p-5 mt-5">
+      <div id="withdraw-options" className="nx-card p-5 mt-5 scroll-mt-20">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4"><h2 className="font-black flex gap-2 items-center"><ArrowUpFromLine className="text-[#00E5FF" /> Withdraw</h2><span className="text-[10px] uppercase text-[#6E688D]">Existing withdrawal methods</span></div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{WITHDRAW_METHODS.map((m) => <button key={m.id} onClick={() => setWithdrawMethod(m.id)} className={`rounded-xl px-3 py-2 border text-left ${withdrawMethod === m.id ? "bg-[#00E5FF] text-black border-[#00E5FF]" : "bg-[#221c46] border-white/10"}`}><div className="text-xs font-bold">{m.label}</div></button>)}</div>
         {withdrawRequirementError && <div role="alert" className="mt-3 rounded-xl border border-[#FF3366]/40 bg-[#FF3366]/10 px-3 py-2.5 text-sm font-black uppercase text-[#FF3366]">{withdrawRequirementError}</div>}
