@@ -23,52 +23,6 @@ function CashierSettings() {
 }
 
 
-function ManualPaymentSettings() {
-  const [methods, setMethods] = useState([]);
-  const [saving, setSaving] = useState(false);
-  const load = useCallback(async () => {
-    try { setMethods((await api.get("/admin/payment-methods")).data || []); }
-    catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail)); }
-  }, []);
-  useEffect(() => { load(); }, [load]);
-  const update = (id, key, value) => setMethods((rows) => rows.map((m) => m.id === id ? { ...m, [key]: value } : m));
-  const save = async () => {
-    setSaving(true);
-    try {
-      const payload = {};
-      methods.forEach((m) => {
-        const clean = { ...m };
-        delete clean._id;
-        payload[m.id] = clean;
-      });
-      const { data } = await api.put("/admin/payment-methods", payload);
-      setMethods(data || []);
-      toast.success("Manual payment settings saved");
-    } catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail)); }
-    finally { setSaving(false); }
-  };
-  if (!methods.length) return null;
-  return <div className="nx-card p-5 lg:col-span-2">
-    <div className="flex items-center justify-between mb-4">
-      <div><h2 className="font-display font-bold text-lg flex items-center gap-2"><Landmark size={18} className="text-[#00E5FF]"/> Manual Deposit Payment Settings</h2><p className="text-xs text-[#A29DBE] mt-1">Super Admin only. These are the receiving details shown to users on the Deposit page.</p></div>
-      <button onClick={load} className="text-[#00E5FF]"><RefreshCw size={16}/></button>
-    </div>
-    <div className="space-y-4">
-      {methods.map((m) => <div key={m.id} className="bg-[#221c46] rounded-2xl p-4">
-        <div className="flex items-center justify-between gap-3 mb-3"><div className="font-black">{m.label}</div><label className="text-xs flex items-center gap-2"><input type="checkbox" checked={Boolean(m.active)} onChange={(e)=>update(m.id,"active",e.target.checked)} /> Active</label></div>
-        {m.id === "bank_transfer_manual" ? <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {[['bank_name','Bank Name'],['account_number','Account Number'],['account_name','Account Name'],['branch','Branch'],['bank_code','Bank / Branch Code']].map(([k,l])=><div key={k}><label className="text-[10px] uppercase text-[#6E688D]">{l}</label><input value={m[k] || ""} onChange={e=>update(m.id,k,e.target.value)} className="mt-1 w-full bg-[#100d22] border border-white/10 rounded-xl px-3 py-2.5 text-sm" /></div>)}
-        </div> : <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div><label className="text-[10px] uppercase text-[#6E688D]">Receiving Number</label><input value={m.receiving_number || ""} onChange={e=>update(m.id,"receiving_number",e.target.value)} className="mt-1 w-full bg-[#100d22] border border-white/10 rounded-xl px-3 py-2.5 text-sm" /></div>
-          <div><label className="text-[10px] uppercase text-[#6E688D]">Recipient Name</label><input value={m.recipient_name || ""} onChange={e=>update(m.id,"recipient_name",e.target.value)} className="mt-1 w-full bg-[#100d22] border border-white/10 rounded-xl px-3 py-2.5 text-sm" /></div>
-        </div>}
-        <div className="mt-3"><label className="text-[10px] uppercase text-[#6E688D]">Instructions</label><textarea value={m.instructions || ""} onChange={e=>update(m.id,"instructions",e.target.value)} rows={3} className="mt-1 w-full bg-[#100d22] border border-white/10 rounded-xl px-3 py-2.5 text-sm resize-y" /></div>
-      </div>)}
-    </div>
-    <button onClick={save} disabled={saving} className="nx-btn-primary w-full mt-4 py-3 flex items-center justify-center gap-2"><Save size={16}/>{saving ? "Saving..." : "Save Manual Payment Settings"}</button>
-  </div>;
-}
-
 function ReferralPanel({ user }) {
   const [data, setData] = useState(null);
   const [commissions, setCommissions] = useState(null);
@@ -316,7 +270,6 @@ export default function AdminPage(){
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <DemoWalletPanel user={user}/>
       {isAdmin&&<CashierSettings/>}
-      {isSuper&&<ManualPaymentSettings/>}
       <ReferralPanel user={user}/>
       <PayoutAccountsPanel canEdit={isAdmin}/>
       {isSuper&&<DepositCleanupPanel/>}

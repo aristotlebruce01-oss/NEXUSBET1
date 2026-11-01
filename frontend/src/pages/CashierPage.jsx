@@ -1,20 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowDownToLine, ArrowUpFromLine, Gift, History, CheckCircle2, X, Copy, Upload } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Gift, History, CheckCircle2, X, Smartphone, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 const fmt = (v) => `₵${Number(v || 0).toFixed(2)}`;
 const DEPOSIT_IMAGES = {
-  mtn_manual: "/payment-methods/mtn-momo.png",
-  telecel_manual: "/payment-methods/telecel-cash.png",
-  bank_transfer_manual: "/payment-methods/ghipss.png",
+  mtn: "/payment-methods/mtn-momo.png",
+  telecel: "/payment-methods/telecel-cash.png",
+  airteltigo: "/payment-methods/airteltigo-money.png",
 };
 const WITHDRAW_METHODS = [
   { id: "mtn", label: "MTN MoMo", image: "/payment-methods/mtn-momo.png" },
   { id: "telecel", label: "Telecel Cash", image: "/payment-methods/telecel-cash.png" },
   { id: "airteltigo", label: "AirtelTigo Money", image: "/payment-methods/airteltigo-money.png" },
-  { id: "bank", label: "Bank Transfer", image: "/payment-methods/ghipss.png" },
 ];
 
 export default function CashierPage({ focusSection = null } = {}) {
@@ -22,14 +21,11 @@ export default function CashierPage({ focusSection = null } = {}) {
   const [status, setStatus] = useState(null);
   const [txns, setTxns] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
-  const [depositMethod, setDepositMethod] = useState("mtn_manual");
+  const [depositMethod, setDepositMethod] = useState("mtn");
   const [withdrawMethod, setWithdrawMethod] = useState("mtn");
   const [depAmt, setDepAmt] = useState("");
-  const [senderName, setSenderName] = useState("");
-  const [senderPhone, setSenderPhone] = useState("");
-  const [senderAccountName, setSenderAccountName] = useState("");
-  const [transactionReference, setTransactionReference] = useState("");
-  const [proofDataUrl, setProofDataUrl] = useState("");
+  const [depositPhone, setDepositPhone] = useState("");
+  const [pendingPayment, setPendingPayment] = useState(null);
   const [wdAmt, setWdAmt] = useState("");
   const [wdPhone, setWdPhone] = useState("");
   const [destination, setDestination] = useState("");
@@ -82,65 +78,40 @@ export default function CashierPage({ focusSection = null } = {}) {
     [withdrawMethod]
   );
 
-  const copyText = async (value) => {
-    try {
-      await navigator.clipboard?.writeText(value);
-      toast.success("Copied");
-    } catch {
-      toast.error("Could not copy");
-    }
-  };
 
-  const handleProof = (file) => {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return toast.error("Proof must be an image");
-    if (file.size > 2 * 1024 * 1024) return toast.error("Proof image must be 2MB or smaller");
-    const reader = new FileReader();
-    reader.onload = () => setProofDataUrl(String(reader.result || ""));
-    reader.readAsDataURL(file);
-  };
-
-  const resetDepositForm = () => {
-    setDepAmt("");
-    setSenderName("");
-    setSenderPhone("");
-    setSenderAccountName("");
-    setTransactionReference("");
-    setProofDataUrl("");
-  };
 
   const deposit = async () => {
     const amount = Number(depAmt);
-    if (!Number.isFinite(amount) || amount < Number(status?.min_deposit || 300)) {
-      return toast.error(`Minimum deposit is ${fmt(status?.min_deposit || 300)}`);
-    }
-    if (!selectedDeposit) return toast.error("No manual deposit method is available");
-    if (!senderName.trim()) return toast.error("Enter the sender name");
-    if (!senderPhone.trim()) return toast.error("Enter the sender phone number");
-    if (selectedDeposit.id === "bank_transfer_manual" && !senderAccountName.trim()) {
-      return toast.error("Enter the sender/account name");
-    }
-    if (!transactionReference.trim()) return toast.error("Enter the transaction/reference ID");
+    if (!Number.isFinite(amount) || amount < Number(status?.min_deposit || 300)) return toast.error(`Minimum deposit is ${fmt(status?.min_deposit || 300)}`);
+    if (!depositPhone.trim()) return toast.error("Enter the mobile money number that will approve this payment");
+    if (!selectedDeposit) return toast.error("No mobile money provider is currently available");
     setBusy(true);
     try {
-      const r = await api.post("/wallet/deposit", {
-        amount,
-        method: depositMethod,
-        sender_name: senderName.trim(),
-        sender_phone: senderPhone.trim(),
-        sender_account_name: senderAccountName.trim(),
-        transaction_reference: transactionReference.trim(),
-        proof_data_url: proofDataUrl || null,
-      });
-      toast.success("Deposit submitted. Waiting for Admin/Super Admin approval.");
-      resetDepositForm();
+      const { data } = await api.post("/wallet/deposit", { amount, method: depositMethod, phone_number: depositPhone.trim() });
+      setPendingPayment({ reference: data.reference, message: data.message || "Approve the payment prompt on your phone." });
+      toast.success("Payment request sent to your phone");
       await load();
-      await reload();
     } catch (e) {
-      toast.error(formatApiErrorDetail(e?.response?.data?.detail) || "Deposit failed");
-    } finally {
-      setBusy(false);
-    }
+      toast.error(formatApiErrorDetail(e?.response?.data?.detail) || "Could not start payment");
+    } finally { setBusy(false); }
+  };
+
+  const checkPayment = async () => {
+    if (!pendingPayment?.reference) return;
+    setBusy(true);
+    try {
+      const { data } = await api.get(`/wallet/deposit/verify/${encodeURIComponent(pendingPayment.reference)}`);
+      if (data.status === "credited") {
+        toast.success("Payment confirmed. Your wallet has been credited.");
+        setPendingPayment(null); setDepAmt(""); setDepositPhone("");
+        await Promise.all([load(), reload()]);
+      } else if (data.status === "failed") {
+        toast.error(data.message || "Payment failed"); setPendingPayment(null); await load();
+      } else {
+        toast.info(data.message || "Still waiting for your mobile money approval");
+      }
+    } catch (e) { toast.error(formatApiErrorDetail(e?.response?.data?.detail) || "Could not verify payment"); }
+    finally { setBusy(false); }
   };
 
   const withdraw = async () => {
@@ -204,57 +175,35 @@ export default function CashierPage({ focusSection = null } = {}) {
           </div>
         </div>
       )}
-      <div className="mb-6"><h1 className="text-3xl font-black">Wallet / Deposit</h1><p className="text-sm text-[#A29DBE] mt-1">Manual deposits are reviewed before your wallet is credited.</p></div>
+      <div className="mb-6"><h1 className="text-3xl font-black">Wallet / Deposit</h1><p className="text-sm text-[#A29DBE] mt-1">Deposit securely with your mobile money network.</p></div>
 
       {bonusAvailable && (
         <div className="nx-card mb-5 overflow-hidden border border-[#FFD700]/30 bg-gradient-to-r from-[#2c2454] to-[#1b1740]">
-          <div className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div className="flex items-center gap-3"><div className="h-11 w-11 rounded-full bg-[#FFD700]/15 flex items-center justify-center"><Gift className="text-[#FFD700]" size={23} /></div><div><div className="text-[#FFD700] font-black tracking-wide">FIRST DEPOSIT BONUS</div><div className="text-sm text-white/80">Eligible first deposit receives up to {fmt(bonusCap)} after approval.</div></div></div><div className="text-left md:text-right"><div className="text-xs text-[#A29DBE]">BONUS CAP</div><div className="text-2xl font-black text-[#00FF87]">+{fmt(bonusCap)}</div></div></div>
+          <div className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div className="flex items-center gap-3"><div className="h-11 w-11 rounded-full bg-[#FFD700]/15 flex items-center justify-center"><Gift className="text-[#FFD700]" size={23} /></div><div><div className="text-[#FFD700] font-black tracking-wide">FIRST DEPOSIT BONUS</div><div className="text-sm text-white/80">Eligible first deposit receives up to {fmt(bonusCap)} after payment confirmation.</div></div></div><div className="text-left md:text-right"><div className="text-xs text-[#A29DBE]">BONUS CAP</div><div className="text-2xl font-black text-[#00FF87]">+{fmt(bonusCap)}</div></div></div>
         </div>
       )}
 
       <div className="nx-card p-5 mb-5 flex flex-wrap justify-between gap-4"><div><span className="text-xs text-[#A29DBE]">Wallet balance</span><div className="text-3xl font-black text-[#FFD700]">{fmt(status?.balance)}</div></div><div className="text-sm text-[#A29DBE]">Minimum deposit {fmt(status?.min_deposit)}<br />Minimum withdrawal {fmt(status?.min_withdrawal)}</div></div>
 
-      <div className="mb-5">
-        <div className="flex items-center justify-between mb-2"><h2 className="font-black">Deposit Methods</h2><span className="text-[10px] uppercase text-[#6E688D]">Manual review only</span></div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {paymentMethods.map((m) => (
-            <button key={m.id} onClick={() => setDepositMethod(m.id)} className={`rounded-2xl px-3 py-3 border transition-all text-left ${depositMethod === m.id ? "bg-[#00E5FF] text-black border-[#00E5FF]" : "bg-[#221c46] border-white/10 hover:border-[#00E5FF]/40"}`}>
-              <div className="h-12 rounded-xl bg-white flex items-center justify-center overflow-hidden mb-2"><img src={DEPOSIT_IMAGES[m.id]} alt={m.label} className="max-h-10 max-w-[88%] object-contain" /></div>
-              <div className="text-sm font-bold">{m.label}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {selectedDeposit && (
-        <div className="nx-card mb-5 p-5 border border-[#00E5FF]/20">
-          <div className="flex items-center gap-3 mb-4"><div className="h-12 w-16 rounded-lg bg-white flex items-center justify-center overflow-hidden shrink-0"><img src={DEPOSIT_IMAGES[selectedDeposit.id]} alt={selectedDeposit.label} className="max-h-9 max-w-[90%] object-contain" /></div><div><div className="text-xs text-[#A29DBE]">Send money to</div><div className="font-black">{selectedDeposit.label}</div></div></div>
-          {selectedDeposit.id !== "bank_transfer_manual" ? (
-            <div className="grid sm:grid-cols-2 gap-3"><div className="bg-[#221c46] rounded-xl p-3"><div className="text-[10px] uppercase text-[#6E688D]">Receiving Number</div><div className="font-mono font-black mt-1">{selectedDeposit.receiving_number}</div><button onClick={() => copyText(selectedDeposit.receiving_number)} className="text-xs text-[#00E5FF] mt-2 flex gap-1 items-center"><Copy size={13}/> Copy</button></div><div className="bg-[#221c46] rounded-xl p-3"><div className="text-[10px] uppercase text-[#6E688D]">Recipient Name</div><div className="font-semibold mt-1">{selectedDeposit.recipient_name}</div></div></div>
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">{[["Bank",selectedDeposit.bank_name],["Account Number",selectedDeposit.account_number],["Account Name",selectedDeposit.account_name],["Branch",selectedDeposit.branch || "Not specified"]].map(([label,value])=><div key={label} className="bg-[#221c46] rounded-xl p-3"><div className="text-[10px] uppercase text-[#6E688D]">{label}</div><div className="font-semibold mt-1 break-words">{value || "—"}</div>{label === "Account Number" && <button onClick={() => copyText(value)} className="text-xs text-[#00E5FF] mt-2 flex gap-1 items-center"><Copy size={13}/> Copy</button>}</div>)}</div>
-          )}
-          <p className="text-xs text-[#A29DBE] mt-4">{selectedDeposit.instructions}</p>
-        </div>
-      )}
 
       <div className="grid lg:grid-cols-3 gap-5">
         <div className="nx-card p-5 lg:col-span-2">
-          <h2 className="font-black flex gap-2 items-center"><ArrowDownToLine className="text-[#00FF87" /> Submit Manual Deposit</h2>
-          <label className="text-xs text-[#A29DBE] block mt-4">Amount</label>
-          <input type="number" min={status?.min_deposit || 300} value={depAmt} onChange={(e) => setDepAmt(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="300 or more" />
-          {bonusAvailable && depositAmount >= Number(status?.min_deposit || 300) && <div className="mt-3 rounded-xl bg-[#00FF87]/10 border border-[#00FF87]/20 p-3 text-sm"><div className="flex justify-between"><span>Deposit</span><b>{fmt(depositAmount)}</b></div><div className="flex justify-between text-[#00FF87] mt-1"><span>Potential first-deposit bonus after approval</span><b>+{fmt(previewBonus)}</b></div></div>}
-          <div className="grid md:grid-cols-2 gap-3 mt-3">
-            <div><label className="text-xs text-[#A29DBE]">Sender name</label><input value={senderName} onChange={(e) => setSenderName(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="Your name" /></div>
-            <div><label className="text-xs text-[#A29DBE]">Sender phone</label><input value={senderPhone} onChange={(e) => setSenderPhone(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="0240000000" /></div>
+          <h2 className="font-black flex gap-2 items-center"><ArrowDownToLine className="text-[#00FF87]" /> Automatic Mobile Money Deposit</h2>
+          <p className="text-xs text-[#A29DBE] mt-1">Choose your network. A secure payment request will be sent to your phone for approval.</p>
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            {paymentMethods.map((m) => <button type="button" key={m.id} onClick={() => setDepositMethod(m.id)} className={`rounded-2xl p-3 border text-center transition-all ${depositMethod === m.id ? "bg-[#00E5FF] text-black border-[#00E5FF]" : "bg-[#221c46] border-white/10 hover:border-[#00E5FF]/50"}`}>
+              <div className="h-14 rounded-xl bg-white flex items-center justify-center p-2"><img src={DEPOSIT_IMAGES[m.id]} alt={m.label} className="max-h-11 max-w-full object-contain"/></div>
+              <span className="block text-xs font-bold mt-2">{m.label}</span>
+            </button>)}
           </div>
-          {selectedDeposit?.id === "bank_transfer_manual" && <div className="mt-3"><label className="text-xs text-[#A29DBE]">Sender/account name</label><input value={senderAccountName} onChange={(e) => setSenderAccountName(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="Name on bank account" /></div>}
-          <label className="text-xs text-[#A29DBE] block mt-3">Transaction / Reference ID</label>
-          <input value={transactionReference} onChange={(e) => setTransactionReference(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3 font-mono" placeholder="Payment transaction ID" />
-          <label className="text-xs text-[#A29DBE] block mt-3">Proof screenshot <span className="text-[#6E688D]">(optional)</span></label>
-          <div className="mt-1 flex flex-wrap items-center gap-3"><label className="cursor-pointer rounded-xl bg-[#221c46] border border-white/10 px-4 py-3 text-sm font-semibold flex items-center gap-2"><Upload size={16}/> Choose image<input type="file" accept="image/*" className="hidden" onChange={(e) => handleProof(e.target.files?.[0])} /></label>{proofDataUrl && <span className="text-xs text-[#00FF87]">Proof attached</span>}</div>
-          <p className="text-[11px] text-[#6E688D] mt-3">Your wallet is not credited when you submit. Admin or Super Admin must verify the payment first.</p>
-          <button disabled={busy || !selectedDeposit} onClick={deposit} className="nx-btn-primary w-full mt-4 py-3">{busy ? "Submitting..." : "Submit Deposit for Review"}</button>
+          {!paymentMethods.length && <p className="mt-3 text-sm text-amber-300">Mobile money checkout is temporarily unavailable. Please contact support.</p>}
+          <label className="text-xs text-[#A29DBE] block mt-4">Deposit amount (GHS)</label>
+          <input type="number" min={status?.min_deposit || 300} value={depAmt} onChange={(e) => setDepAmt(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3 text-base" placeholder="Enter amount" />
+          {bonusAvailable && depositAmount >= Number(status?.min_deposit || 300) && <div className="mt-3 rounded-xl bg-[#00FF87]/10 border border-[#00FF87]/20 p-3 text-sm"><div className="flex justify-between"><span>Deposit</span><b>{fmt(depositAmount)}</b></div><div className="flex justify-between text-[#00FF87] mt-1"><span>First-deposit bonus (if eligible)</span><b>+{fmt(previewBonus)}</b></div></div>}
+          <label className="text-xs text-[#A29DBE] block mt-3">Mobile money phone number</label>
+          <input inputMode="tel" autoComplete="tel" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3 text-base" placeholder="0241234567" />
+          {pendingPayment ? <div className="mt-4 rounded-xl border border-[#FFD700]/30 bg-[#FFD700]/10 p-4"><div className="font-bold text-[#FFD700]">Payment awaiting approval</div><p className="text-sm mt-2 text-white/80">{pendingPayment.message}</p><p className="text-[11px] text-[#A29DBE] mt-2 break-all">Reference: {pendingPayment.reference}</p><button type="button" disabled={busy} onClick={checkPayment} className="nx-btn-primary w-full mt-3 py-3 flex items-center justify-center gap-2"><RefreshCw size={16}/>{busy ? "Checking..." : "I've approved — Check payment"}</button></div> : <button disabled={busy || !selectedDeposit || !paymentMethods.length} onClick={deposit} className="nx-btn-primary w-full mt-4 py-3 flex items-center justify-center gap-2"><Smartphone size={17}/>{busy ? "Starting secure payment..." : `Pay with ${selectedDeposit?.label || "Mobile Money"}`}</button>}
+          <p className="text-[11px] text-[#6E688D] mt-3">Your wallet is credited only after the payment provider confirms the transaction. Never share your MoMo PIN or OTP with anyone.</p>
         </div>
 
         <div className="nx-card p-5">
@@ -264,10 +213,10 @@ export default function CashierPage({ focusSection = null } = {}) {
       </div>
 
       <div id="withdraw-options" className="nx-card p-5 mt-5 scroll-mt-20">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4"><h2 className="font-black flex gap-2 items-center"><ArrowUpFromLine className="text-[#00E5FF" /> Withdraw</h2><span className="text-[10px] uppercase text-[#6E688D]">Existing withdrawal methods</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4"><h2 className="font-black flex gap-2 items-center"><ArrowUpFromLine className="text-[#00E5FF" /> Withdraw</h2><span className="text-[10px] uppercase text-[#6E688D]">Mobile money withdrawal methods</span></div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{WITHDRAW_METHODS.map((m) => <button key={m.id} onClick={() => setWithdrawMethod(m.id)} className={`rounded-xl px-3 py-2 border text-left ${withdrawMethod === m.id ? "bg-[#00E5FF] text-black border-[#00E5FF]" : "bg-[#221c46] border-white/10"}`}><div className="text-xs font-bold">{m.label}</div></button>)}</div>
         {withdrawRequirementError && <div role="alert" className="mt-3 rounded-xl border border-[#FF3366]/40 bg-[#FF3366]/10 px-3 py-2.5 text-sm font-black uppercase text-[#FF3366]">{withdrawRequirementError}</div>}
-        <div className="grid md:grid-cols-3 gap-3 mt-3"><div><label className="text-xs text-[#A29DBE]">Amount</label><input type="number" value={wdAmt} onChange={(e) => { setWdAmt(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="3000 or more" /></div><div><label className="text-xs text-[#A29DBE]">Phone number</label><input value={wdPhone} onChange={(e) => { setWdPhone(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="0240000000" /></div><div><label className="text-xs text-[#A29DBE]">Destination / account</label><input value={destination} onChange={(e) => { setDestination(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="MoMo number or bank account" /></div></div>
+        <div className="grid md:grid-cols-3 gap-3 mt-3"><div><label className="text-xs text-[#A29DBE]">Amount</label><input type="number" value={wdAmt} onChange={(e) => { setWdAmt(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="3000 or more" /></div><div><label className="text-xs text-[#A29DBE]">Phone number</label><input value={wdPhone} onChange={(e) => { setWdPhone(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="0240000000" /></div><div><label className="text-xs text-[#A29DBE]">Destination / account</label><input value={destination} onChange={(e) => { setDestination(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="Mobile money number" /></div></div>
         <button disabled={busy} onClick={withdraw} className="nx-btn-primary w-full mt-4 py-3">Withdraw</button>
       </div>
     </div>
