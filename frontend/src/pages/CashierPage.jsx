@@ -66,7 +66,7 @@ export default function CashierPage({ focusSection = null } = {}) {
   const bonusAvailable = Boolean(status?.first_deposit_bonus_available);
   const bonusCap = Number(status?.first_deposit_bonus_cap || 100);
   const depositAmount = Number(depAmt || 0);
-  const previewBonus = bonusAvailable && depositAmount >= Number(status?.min_deposit ?? 1)
+  const previewBonus = bonusAvailable && depositAmount >= Number(status?.min_deposit ?? 5)
     ? Math.min(depositAmount, bonusCap)
     : 0;
   const selectedDeposit = useMemo(
@@ -82,7 +82,7 @@ export default function CashierPage({ focusSection = null } = {}) {
 
   const deposit = async () => {
     const amount = Number(depAmt);
-    if (!Number.isFinite(amount) || amount < Number(status?.min_deposit ?? 1)) return toast.error(`Minimum deposit is ${fmt(status?.min_deposit ?? 1)}`);
+    if (!Number.isFinite(amount) || amount < Number(status?.min_deposit ?? 5)) return toast.error(`Minimum deposit is ${fmt(status?.min_deposit ?? 5)}`);
     if (!depositPhone.trim()) return toast.error("Enter the mobile money number that will approve this payment");
     if (!selectedDeposit) return toast.error("No mobile money provider is currently available");
     setBusy(true);
@@ -198,8 +198,8 @@ export default function CashierPage({ focusSection = null } = {}) {
           </div>
           {!paymentMethods.length && <p className="mt-3 text-sm text-amber-300">Mobile money checkout is temporarily unavailable. Please contact support.</p>}
           <label className="text-xs text-[#A29DBE] block mt-4">Deposit amount (GHS)</label>
-          <input type="number" min={status?.min_deposit ?? 1} value={depAmt} onChange={(e) => setDepAmt(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3 text-base" placeholder="Enter amount" />
-          {bonusAvailable && depositAmount >= Number(status?.min_deposit ?? 1) && <div className="mt-3 rounded-xl bg-[#00FF87]/10 border border-[#00FF87]/20 p-3 text-sm"><div className="flex justify-between"><span>Deposit</span><b>{fmt(depositAmount)}</b></div><div className="flex justify-between text-[#00FF87] mt-1"><span>First-deposit bonus (if eligible)</span><b>+{fmt(previewBonus)}</b></div></div>}
+          <input type="number" min={status?.min_deposit ?? 5} value={depAmt} onChange={(e) => setDepAmt(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3 text-base" placeholder="Enter amount" />
+          {bonusAvailable && depositAmount >= Number(status?.min_deposit ?? 5) && <div className="mt-3 rounded-xl bg-[#00FF87]/10 border border-[#00FF87]/20 p-3 text-sm"><div className="flex justify-between"><span>Deposit</span><b>{fmt(depositAmount)}</b></div><div className="flex justify-between text-[#00FF87] mt-1"><span>First-deposit bonus (if eligible)</span><b>+{fmt(previewBonus)}</b></div></div>}
           <label className="text-xs text-[#A29DBE] block mt-3">Mobile money phone number</label>
           <input inputMode="tel" autoComplete="tel" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3 text-base" placeholder="0241234567" />
           {pendingPayment ? <div className="mt-4 rounded-xl border border-[#FFD700]/30 bg-[#FFD700]/10 p-4"><div className="font-bold text-[#FFD700]">Payment awaiting approval</div><p className="text-sm mt-2 text-white/80">{pendingPayment.message}</p><p className="text-[11px] text-[#A29DBE] mt-2 break-all">Reference: {pendingPayment.reference}</p><button type="button" disabled={busy} onClick={checkPayment} className="nx-btn-primary w-full mt-3 py-3 flex items-center justify-center gap-2"><RefreshCw size={16}/>{busy ? "Checking..." : "I've approved — Check payment"}</button></div> : <button disabled={busy || !selectedDeposit || !paymentMethods.length} onClick={deposit} className="nx-btn-primary w-full mt-4 py-3 flex items-center justify-center gap-2"><Smartphone size={17}/>{busy ? "Starting secure payment..." : `Pay with ${selectedDeposit?.label || "Mobile Money"}`}</button>}
