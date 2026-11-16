@@ -65,7 +65,7 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }) {
             </div>
             <h2 className="font-display text-2xl font-bold mt-4">{isSignup ? "Create account" : "Welcome back"}</h2>
             <p className="text-[#A29DBE] text-sm mt-1">
-              {isSignup ? "Create your NexusBet account with a virtual wallet." : "Log in to access your wallet and account tools."}
+              {isSignup ? "" : "Log in to access your wallet and account tools."}
             </p>
 
             <form onSubmit={submit} className="mt-6 space-y-4">
