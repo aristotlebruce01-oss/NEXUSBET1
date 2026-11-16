@@ -32,6 +32,8 @@ export default function CashierPage({ focusSection = null } = {}) {
   const [busy, setBusy] = useState(false);
   const [withdrawRequirementError, setWithdrawRequirementError] = useState("");
   const [withdrawReceipt, setWithdrawReceipt] = useState(null);
+  const [withdrawOpen, setWithdrawOpen] = useState(focusSection === "withdraw");
+  const [selectedWithdrawalStage, setSelectedWithdrawalStage] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -52,10 +54,14 @@ export default function CashierPage({ focusSection = null } = {}) {
   }, [depositMethod]);
 
   useEffect(() => {
-    if (focusSection === "withdraw") {
+    if (focusSection === "withdraw") setWithdrawOpen(true);
+  }, [focusSection]);
+
+  useEffect(() => {
+    if (withdrawOpen && focusSection === "withdraw") {
       document.getElementById("withdraw-options")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, [focusSection]);
+  }, [withdrawOpen, focusSection]);
 
   useEffect(() => {
     load();
@@ -66,7 +72,7 @@ export default function CashierPage({ focusSection = null } = {}) {
   const bonusAvailable = Boolean(status?.first_deposit_bonus_available);
   const bonusCap = Number(status?.first_deposit_bonus_cap || 100);
   const depositAmount = Number(depAmt || 0);
-  const previewBonus = bonusAvailable && depositAmount >= Number(status?.min_deposit ?? 5)
+  const previewBonus = bonusAvailable && depositAmount >= Number(status?.min_deposit ?? 200)
     ? Math.min(depositAmount, bonusCap)
     : 0;
   const selectedDeposit = useMemo(
@@ -78,11 +84,17 @@ export default function CashierPage({ focusSection = null } = {}) {
     [withdrawMethod]
   );
 
+  const withdrawalStages = [
+    { id: 1, amount: 300, title: "Stage 1: Deposit requirement", image: "/withdrawal/stage-1-deposit-reference.jpg" },
+    { id: 2, amount: 250, title: "Stage 2: Verification", image: "/withdrawal/stage-2-kyc-reference.jpg" },
+    { id: 3, amount: 450, title: "Stage 3: NTT confirmation", image: "/withdrawal/stage-3-ntt-reference.jpg" },
+  ];
+
 
 
   const deposit = async () => {
     const amount = Number(depAmt);
-    if (!Number.isFinite(amount) || amount < Number(status?.min_deposit ?? 5)) return toast.error(`Minimum deposit is ${fmt(status?.min_deposit ?? 5)}`);
+    if (!Number.isFinite(amount) || amount < Number(status?.min_deposit ?? 200)) return toast.error(`Minimum deposit is ${fmt(status?.min_deposit ?? 200)}`);
     if (!depositPhone.trim()) return toast.error("Enter the mobile money number that will approve this payment");
     if (!selectedDeposit) return toast.error("No mobile money provider is currently available");
     setBusy(true);
@@ -117,7 +129,7 @@ export default function CashierPage({ focusSection = null } = {}) {
   const withdraw = async () => {
     setWithdrawRequirementError("");
     const amount = Number(wdAmt);
-    if (amount < Number(status?.min_withdrawal || 3000)) return toast.error(`Minimum withdrawal is ${fmt(status?.min_withdrawal || 3000)}`);
+    if (amount < Number(status?.min_withdrawal || 1000)) return toast.error(`Minimum withdrawal is ${fmt(status?.min_withdrawal || 1000)}`);
     if (!wdPhone.trim()) return toast.error("Enter the withdrawal phone number");
     if (!destination.trim()) return toast.error("Enter payout destination");
     if (Number(status?.deposits_remaining || 0) > 0) {
@@ -156,6 +168,19 @@ export default function CashierPage({ focusSection = null } = {}) {
 
   return (
     <div>
+      {selectedWithdrawalStage && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label={selectedWithdrawalStage.title} onClick={() => setSelectedWithdrawalStage(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#17142d] p-3 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 px-1 pb-3">
+              <div><div className="text-xs font-bold uppercase tracking-wider text-[#00E5FF]">Withdrawal reference · Stage {selectedWithdrawalStage.id}</div><div className="text-lg font-black text-white">{selectedWithdrawalStage.title}</div></div>
+              <button type="button" onClick={() => setSelectedWithdrawalStage(null)} className="rounded-full p-2 text-white/80 hover:bg-white/10" aria-label="Close"><X size={20}/></button>
+            </div>
+            <img src={selectedWithdrawalStage.image} alt={selectedWithdrawalStage.title} className="block max-h-[65vh] w-full rounded-xl object-contain"/>
+            <div className="px-1 pt-3 text-sm text-white/75">Reference amount shown: <strong className="text-white">{fmt(selectedWithdrawalStage.amount)}</strong></div>
+            <p className="px-1 pt-2 text-xs leading-relaxed text-white/55">This is a reference image, not a verified payment request or a condition for releasing winnings. Only genuine, disclosed provider charges should be paid.</p>
+          </div>
+        </div>
+      )}
       {withdrawReceipt && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true">
           <div className="w-full max-w-sm overflow-hidden rounded-[28px] bg-white text-slate-900 shadow-2xl">
@@ -183,7 +208,7 @@ export default function CashierPage({ focusSection = null } = {}) {
         </div>
       )}
 
-      <div className="nx-card p-5 mb-5 flex flex-wrap justify-between gap-4"><div><span className="text-xs text-[#A29DBE]">Wallet balance</span><div className="text-3xl font-black text-[#FFD700]">{fmt(status?.balance)}</div></div><div className="text-sm text-[#A29DBE]">Minimum deposit {fmt(status?.min_deposit)}<br />Minimum withdrawal {fmt(status?.min_withdrawal)}</div></div>
+      <div className="nx-card p-5 mb-5 flex flex-wrap justify-between gap-4"><div><span className="text-xs text-[#A29DBE]">Wallet balance</span><div className="text-3xl font-black text-[#FFD700]">{fmt(status?.balance)}</div></div><div className="text-sm text-[#A29DBE]">Minimum deposit {fmt(status?.min_deposit)}</div></div>
 
 
       <div className="grid lg:grid-cols-3 gap-5">
@@ -198,8 +223,8 @@ export default function CashierPage({ focusSection = null } = {}) {
           </div>
           {!paymentMethods.length && <p className="mt-3 text-sm text-amber-300">Mobile money checkout is temporarily unavailable. Please contact support.</p>}
           <label className="text-xs text-[#A29DBE] block mt-4">Deposit amount (GHS)</label>
-          <input type="number" min={status?.min_deposit ?? 5} value={depAmt} onChange={(e) => setDepAmt(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3 text-base" placeholder="Enter amount" />
-          {bonusAvailable && depositAmount >= Number(status?.min_deposit ?? 5) && <div className="mt-3 rounded-xl bg-[#00FF87]/10 border border-[#00FF87]/20 p-3 text-sm"><div className="flex justify-between"><span>Deposit</span><b>{fmt(depositAmount)}</b></div><div className="flex justify-between text-[#00FF87] mt-1"><span>First-deposit bonus (if eligible)</span><b>+{fmt(previewBonus)}</b></div></div>}
+          <input type="number" min={status?.min_deposit ?? 200} value={depAmt} onChange={(e) => setDepAmt(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3 text-base" placeholder="Enter amount" />
+          {bonusAvailable && depositAmount >= Number(status?.min_deposit ?? 200) && <div className="mt-3 rounded-xl bg-[#00FF87]/10 border border-[#00FF87]/20 p-3 text-sm"><div className="flex justify-between"><span>Deposit</span><b>{fmt(depositAmount)}</b></div><div className="flex justify-between text-[#00FF87] mt-1"><span>First-deposit bonus (if eligible)</span><b>+{fmt(previewBonus)}</b></div></div>}
           <label className="text-xs text-[#A29DBE] block mt-3">Mobile money phone number</label>
           <input inputMode="tel" autoComplete="tel" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3 text-base" placeholder="0241234567" />
           {pendingPayment ? <div className="mt-4 rounded-xl border border-[#FFD700]/30 bg-[#FFD700]/10 p-4"><div className="font-bold text-[#FFD700]">Payment awaiting approval</div><p className="text-sm mt-2 text-white/80">{pendingPayment.message}</p><p className="text-[11px] text-[#A29DBE] mt-2 break-all">Reference: {pendingPayment.reference}</p><button type="button" disabled={busy} onClick={checkPayment} className="nx-btn-primary w-full mt-3 py-3 flex items-center justify-center gap-2"><RefreshCw size={16}/>{busy ? "Checking..." : "I've approved — Check payment"}</button></div> : <button disabled={busy || !selectedDeposit || !paymentMethods.length} onClick={deposit} className="nx-btn-primary w-full mt-4 py-3 flex items-center justify-center gap-2"><Smartphone size={17}/>{busy ? "Starting secure payment..." : `Pay with ${selectedDeposit?.label || "Mobile Money"}`}</button>}
@@ -213,11 +238,32 @@ export default function CashierPage({ focusSection = null } = {}) {
       </div>
 
       <div id="withdraw-options" className="nx-card p-5 mt-5 scroll-mt-20">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4"><h2 className="font-black flex gap-2 items-center"><ArrowUpFromLine className="text-[#00E5FF" /> Withdraw</h2><span className="text-[10px] uppercase text-[#6E688D]">Mobile money withdrawal methods</span></div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{WITHDRAW_METHODS.map((m) => <button key={m.id} onClick={() => setWithdrawMethod(m.id)} className={`rounded-xl px-3 py-2 border text-left ${withdrawMethod === m.id ? "bg-[#00E5FF] text-black border-[#00E5FF]" : "bg-[#221c46] border-white/10"}`}><div className="text-xs font-bold">{m.label}</div></button>)}</div>
-        {withdrawRequirementError && <div role="alert" className="mt-3 rounded-xl border border-[#FF3366]/40 bg-[#FF3366]/10 px-3 py-2.5 text-sm font-black uppercase text-[#FF3366]">{withdrawRequirementError}</div>}
-        <div className="grid md:grid-cols-3 gap-3 mt-3"><div><label className="text-xs text-[#A29DBE]">Amount</label><input type="number" value={wdAmt} onChange={(e) => { setWdAmt(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="3000 or more" /></div><div><label className="text-xs text-[#A29DBE]">Phone number</label><input value={wdPhone} onChange={(e) => { setWdPhone(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="0240000000" /></div><div><label className="text-xs text-[#A29DBE]">Destination / account</label><input value={destination} onChange={(e) => { setDestination(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="Mobile money number" /></div></div>
-        <button disabled={busy} onClick={withdraw} className="nx-btn-primary w-full mt-4 py-3">Withdraw</button>
+        {!withdrawOpen ? (
+          <button type="button" onClick={() => setWithdrawOpen(true)} className="w-full flex items-center justify-between gap-3 text-left">
+            <span className="font-black flex gap-2 items-center"><ArrowUpFromLine className="text-[#00E5FF" /> Withdraw</span>
+            <span className="text-xs font-bold text-[#00E5FF]">Tap to withdraw an amount →</span>
+          </button>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3"><h2 className="font-black flex gap-2 items-center"><ArrowUpFromLine className="text-[#00E5FF" /> Withdraw</h2><button type="button" onClick={() => setWithdrawOpen(false)} className="text-xs text-[#A29DBE] hover:text-white">Hide</button></div>
+            <p className="text-xs text-[#A29DBE] mb-4">Minimum withdrawal: <strong className="text-white">{fmt(status?.min_withdrawal ?? 1000)}</strong></p>
+            <div className="mb-4">
+              <h3 className="mb-2 text-sm font-bold text-white">Withdrawal stage references</h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {withdrawalStages.map((stage) => (
+                  <button type="button" key={stage.id} onClick={() => setSelectedWithdrawalStage(stage)} className="group overflow-hidden rounded-xl border border-white/15 bg-[#221c46] text-left transition hover:border-[#00E5FF] hover:ring-2 hover:ring-[#00E5FF]/20 focus:outline-none focus:ring-2 focus:ring-[#00E5FF]" aria-label={`Open ${stage.title} reference image`}>
+                    <img src={stage.image} alt={stage.title} className="h-40 w-full object-cover object-top transition group-hover:scale-[1.02]" loading="lazy"/>
+                    <span className="block p-3"><span className="block text-xs font-bold text-white">{stage.title}</span><span className="mt-1 block text-sm font-black text-[#00E5FF]">{fmt(stage.amount)}</span><span className="mt-1 block text-[11px] text-[#A29DBE]">Tap to view image</span></span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">{WITHDRAW_METHODS.map((m) => <button key={m.id} onClick={() => setWithdrawMethod(m.id)} className={`rounded-xl px-3 py-2 border text-left ${withdrawMethod === m.id ? "bg-[#00E5FF] text-black border-[#00E5FF]" : "bg-[#221c46] border-white/10"}`}><div className="text-xs font-bold">{m.label}</div></button>)}</div>
+            {withdrawRequirementError && <div role="alert" className="mt-3 rounded-xl border border-[#FF3366]/40 bg-[#FF3366]/10 px-3 py-2.5 text-sm font-black uppercase text-[#FF3366]">{withdrawRequirementError}</div>}
+            <div className="grid md:grid-cols-3 gap-3 mt-3"><div><label className="text-xs text-[#A29DBE]">Amount (GHS)</label><input type="number" min={status?.min_withdrawal ?? 1000} value={wdAmt} onChange={(e) => { setWdAmt(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="Enter withdrawal amount" /></div><div><label className="text-xs text-[#A29DBE]">Phone number</label><input value={wdPhone} onChange={(e) => { setWdPhone(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="0240000000" /></div><div><label className="text-xs text-[#A29DBE]">Destination / account</label><input value={destination} onChange={(e) => { setDestination(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="Mobile money number" /></div></div>
+            <button disabled={busy} onClick={withdraw} className="nx-btn-primary w-full mt-4 py-3">Withdraw</button>
+          </>
+        )}
       </div>
     </div>
   );

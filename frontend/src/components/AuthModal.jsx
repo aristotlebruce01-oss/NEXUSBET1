@@ -42,14 +42,14 @@ export default function AuthModal({ open, mode, onClose, onSwitchMode }) {
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+          className="fixed inset-0 z-[90] flex items-start sm:items-center justify-center overflow-y-auto overscroll-contain p-3 sm:p-4"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           style={{ background: "rgba(6,4,18,0.8)", backdropFilter: "blur(6px)" }}
           onClick={onClose}
         >
           <motion.div
             data-testid="auth-modal"
-            className="nx-card w-full max-w-md p-8 relative"
+            className="nx-card w-full max-w-md p-5 sm:p-8 relative my-auto max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain"
             initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
             onClick={(e) => e.stopPropagation()}
           >
