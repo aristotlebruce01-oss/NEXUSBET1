@@ -33,7 +33,7 @@ export default function CashierPage({ focusSection = null } = {}) {
   const [withdrawRequirementError, setWithdrawRequirementError] = useState("");
   const [withdrawReceipt, setWithdrawReceipt] = useState(null);
   const [withdrawOpen, setWithdrawOpen] = useState(focusSection === "withdraw");
-  const [selectedWithdrawalStage, setSelectedWithdrawalStage] = useState(null);
+  const [withdrawalFlowStage, setWithdrawalFlowStage] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -129,14 +129,15 @@ export default function CashierPage({ focusSection = null } = {}) {
   const withdraw = async () => {
     setWithdrawRequirementError("");
     const amount = Number(wdAmt);
-    if (amount < Number(status?.min_withdrawal || 1000)) return toast.error(`Minimum withdrawal is ${fmt(status?.min_withdrawal || 1000)}`);
+    if (!Number.isFinite(amount) || amount < Number(status?.min_withdrawal || 1000)) return toast.error(`Minimum withdrawal is ${fmt(status?.min_withdrawal || 1000)}`);
     if (!wdPhone.trim()) return toast.error("Enter the withdrawal phone number");
     if (!destination.trim()) return toast.error("Enter payout destination");
-    if (Number(status?.deposits_remaining || 0) > 0) {
-      setWithdrawRequirementError("MAKE 3 MORE DEPOSIT BEFORE YOU CAN WITHDRAW YOUR WINNINGS");
-      return;
-    }
     if (amount > Number(status?.available_balance || 0)) return toast.error("Insufficient available balance");
+    setWithdrawalFlowStage(1);
+  };
+
+  const submitWithdrawal = async () => {
+    const amount = Number(wdAmt);
     setBusy(true);
     try {
       const r = await api.post("/wallet/withdraw", { amount, method: withdrawMethod, phone_number: wdPhone.trim(), destination: destination.trim() });
@@ -152,15 +153,11 @@ export default function CashierPage({ focusSection = null } = {}) {
           time: new Date().toLocaleString(),
         });
       }
-      setWdAmt(""); setWdPhone(""); setDestination("");
+      setWdAmt(""); setWdPhone(""); setDestination(""); setWithdrawalFlowStage(0);
       await Promise.all([load(), reload()]);
     } catch (e) {
       const detail = formatApiErrorDetail(e?.response?.data?.detail) || "Withdrawal failed";
-      if (String(detail).toLowerCase().includes("3 more deposits")) {
-        setWithdrawRequirementError("MAKE 3 MORE DEPOSIT BEFORE YOU CAN WITHDRAW YOUR WINNINGS");
-      } else {
-        toast.error(detail);
-      }
+      toast.error(detail);
     } finally {
       setBusy(false);
     }
@@ -168,19 +165,6 @@ export default function CashierPage({ focusSection = null } = {}) {
 
   return (
     <div>
-      {selectedWithdrawalStage && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label={selectedWithdrawalStage.title} onClick={() => setSelectedWithdrawalStage(null)}>
-          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#17142d] p-3 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between gap-3 px-1 pb-3">
-              <div><div className="text-xs font-bold uppercase tracking-wider text-[#00E5FF]">Withdrawal reference · Stage {selectedWithdrawalStage.id}</div><div className="text-lg font-black text-white">{selectedWithdrawalStage.title}</div></div>
-              <button type="button" onClick={() => setSelectedWithdrawalStage(null)} className="rounded-full p-2 text-white/80 hover:bg-white/10" aria-label="Close"><X size={20}/></button>
-            </div>
-            <img src={selectedWithdrawalStage.image} alt={selectedWithdrawalStage.title} className="block max-h-[65vh] w-full rounded-xl object-contain"/>
-            <div className="px-1 pt-3 text-sm text-white/75">Reference amount shown: <strong className="text-white">{fmt(selectedWithdrawalStage.amount)}</strong></div>
-            <p className="px-1 pt-2 text-xs leading-relaxed text-white/55">This is a reference image, not a verified payment request or a condition for releasing winnings. Only genuine, disclosed provider charges should be paid.</p>
-          </div>
-        </div>
-      )}
       {withdrawReceipt && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true">
           <div className="w-full max-w-sm overflow-hidden rounded-[28px] bg-white text-slate-900 shadow-2xl">
@@ -247,21 +231,33 @@ export default function CashierPage({ focusSection = null } = {}) {
           <>
             <div className="flex flex-wrap items-center justify-between gap-3 mb-3"><h2 className="font-black flex gap-2 items-center"><ArrowUpFromLine className="text-[#00E5FF" /> Withdraw</h2><button type="button" onClick={() => setWithdrawOpen(false)} className="text-xs text-[#A29DBE] hover:text-white">Hide</button></div>
             <p className="text-xs text-[#A29DBE] mb-4">Minimum withdrawal: <strong className="text-white">{fmt(status?.min_withdrawal ?? 1000)}</strong></p>
-            <div className="mb-4">
-              <h3 className="mb-2 text-sm font-bold text-white">Withdrawal stage references</h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {withdrawalStages.map((stage) => (
-                  <button type="button" key={stage.id} onClick={() => setSelectedWithdrawalStage(stage)} className="group overflow-hidden rounded-xl border border-white/15 bg-[#221c46] text-left transition hover:border-[#00E5FF] hover:ring-2 hover:ring-[#00E5FF]/20 focus:outline-none focus:ring-2 focus:ring-[#00E5FF]" aria-label={`Open ${stage.title} reference image`}>
-                    <img src={stage.image} alt={stage.title} className="h-40 w-full object-cover object-top transition group-hover:scale-[1.02]" loading="lazy"/>
-                    <span className="block p-3"><span className="block text-xs font-bold text-white">{stage.title}</span><span className="mt-1 block text-sm font-black text-[#00E5FF]">{fmt(stage.amount)}</span><span className="mt-1 block text-[11px] text-[#A29DBE]">Tap to view image</span></span>
+            {withdrawalFlowStage > 0 && (() => {
+              const stage = withdrawalStages[withdrawalFlowStage - 1];
+              const isLastStage = withdrawalFlowStage === withdrawalStages.length;
+              return (
+                <div className="mb-4 rounded-2xl border border-[#00E5FF]/25 bg-[#17142d] p-3" aria-live="polite">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-[#00E5FF]">Withdrawal stage {stage.id} of 3</div>
+                      <h3 className="text-base font-black text-white">{stage.title}</h3>
+                    </div>
+                    <span className="rounded-full bg-[#00E5FF]/10 px-3 py-1 text-sm font-black text-[#00E5FF]">{fmt(stage.amount)}</span>
+                  </div>
+                  <img src={stage.image} alt={`${stage.title} reference`} className="block max-h-[65vh] w-full rounded-xl object-contain" />
+                  <p className="px-1 pt-3 text-xs leading-relaxed text-white/60">Reference image only. This screen does not collect this amount or establish a fee. Any genuine provider charge must be disclosed and verified separately.</p>
+                  <button type="button" disabled={busy} onClick={() => isLastStage ? submitWithdrawal() : setWithdrawalFlowStage((current) => current + 1)} className="nx-btn-primary mt-4 w-full py-3">
+                    {isLastStage ? (busy ? "Submitting withdrawal…" : "Continue to payout processing") : "Continue to next stage"}
                   </button>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">{WITHDRAW_METHODS.map((m) => <button key={m.id} onClick={() => setWithdrawMethod(m.id)} className={`rounded-xl px-3 py-2 border text-left ${withdrawMethod === m.id ? "bg-[#00E5FF] text-black border-[#00E5FF]" : "bg-[#221c46] border-white/10"}`}><div className="text-xs font-bold">{m.label}</div></button>)}</div>
-            {withdrawRequirementError && <div role="alert" className="mt-3 rounded-xl border border-[#FF3366]/40 bg-[#FF3366]/10 px-3 py-2.5 text-sm font-black uppercase text-[#FF3366]">{withdrawRequirementError}</div>}
-            <div className="grid md:grid-cols-3 gap-3 mt-3"><div><label className="text-xs text-[#A29DBE]">Amount (GHS)</label><input type="number" min={status?.min_withdrawal ?? 1000} value={wdAmt} onChange={(e) => { setWdAmt(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="Enter withdrawal amount" /></div><div><label className="text-xs text-[#A29DBE]">Phone number</label><input value={wdPhone} onChange={(e) => { setWdPhone(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="0240000000" /></div><div><label className="text-xs text-[#A29DBE]">Destination / account</label><input value={destination} onChange={(e) => { setDestination(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="Mobile money number" /></div></div>
-            <button disabled={busy} onClick={withdraw} className="nx-btn-primary w-full mt-4 py-3">Withdraw</button>
+                  <button type="button" onClick={() => setWithdrawalFlowStage(0)} className="mt-2 w-full py-2 text-xs text-[#A29DBE] hover:text-white">Cancel stages</button>
+                </div>
+              );
+            })()}
+            {withdrawalFlowStage === 0 && <>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">{WITHDRAW_METHODS.map((m) => <button type="button" key={m.id} onClick={() => setWithdrawMethod(m.id)} className={`rounded-xl px-3 py-2 border text-left ${withdrawMethod === m.id ? "bg-[#00E5FF] text-black border-[#00E5FF]" : "bg-[#221c46] border-white/10"}`}><div className="text-xs font-bold">{m.label}</div></button>)}</div>
+              {withdrawRequirementError && <div role="alert" className="mt-3 rounded-xl border border-[#FF3366]/40 bg-[#FF3366]/10 px-3 py-2.5 text-sm font-black uppercase text-[#FF3366]">{withdrawRequirementError}</div>}
+              <div className="grid md:grid-cols-3 gap-3 mt-3"><div><label className="text-xs text-[#A29DBE]">Amount (GHS)</label><input type="number" min={status?.min_withdrawal ?? 1000} value={wdAmt} onChange={(e) => { setWdAmt(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="Enter withdrawal amount" /></div><div><label className="text-xs text-[#A29DBE]">Phone number</label><input value={wdPhone} onChange={(e) => { setWdPhone(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="0240000000" /></div><div><label className="text-xs text-[#A29DBE]">Destination / account</label><input value={destination} onChange={(e) => { setDestination(e.target.value); setWithdrawRequirementError(""); }} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3" placeholder="Mobile money number" /></div></div>
+              <button disabled={busy} onClick={withdraw} className="nx-btn-primary w-full mt-4 py-3">Withdraw</button>
+            </>}
           </>
         )}
       </div>
