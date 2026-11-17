@@ -1,5 +1,6 @@
 import React from "react";
 import { getLogo } from "@/utils/getLogo";
+import { API } from "@/lib/api";
 
 function makeFallback(text) {
   let h1 = 2166136261;
@@ -25,12 +26,12 @@ function makeFallback(text) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-export default function TeamLogo({ name, size = 34, className = "" }) {
+export default function TeamLogo({ name, size = 34, className = "", logoUrl }) {
   const text = String(name || "Team").trim() || "Team";
-  const logo = getLogo(text);
+  const logo = logoUrl || getLogo(text);
   const [failedSource, setFailedSource] = React.useState("");
   const useFallback = !logo || failedSource === logo;
-  const source = useFallback ? makeFallback(text) : logo;
+  const source = useFallback ? makeFallback(text) : (String(logo).startsWith("/events/") ? `${API}${logo}` : logo);
 
   return (
     <img
