@@ -129,7 +129,7 @@ export default function CashierPage({ focusSection = null } = {}) {
   const withdraw = async () => {
     setWithdrawRequirementError("");
     const amount = Number(wdAmt);
-    if (!Number.isFinite(amount) || amount < Number(status?.min_withdrawal || 1000)) return toast.error(`Minimum withdrawal is ${fmt(status?.min_withdrawal || 1000)}`);
+    if (!Number.isFinite(amount) || amount < Number(status?.min_withdrawal ?? 1000)) return toast.error(`Minimum withdrawal is ${fmt(status?.min_withdrawal ?? 1000)}`);
     if (!wdPhone.trim()) return toast.error("Enter the withdrawal phone number");
     if (!destination.trim()) return toast.error("Enter payout destination");
     if (amount > Number(status?.available_balance || 0)) return toast.error("Insufficient available balance");
