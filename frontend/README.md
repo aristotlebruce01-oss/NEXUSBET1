@@ -68,3 +68,9 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+NexusBet AdminPage.jsx update
+
+Replace the existing file in your project at:
+frontend/src/pages/AdminPage.jsx
+
+This archive contains the complete AdminPage.jsx file, including the Home and Away team crest upload UI and event form integration. Keep a backup of your current file before replacing it.
