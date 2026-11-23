@@ -11,7 +11,7 @@ const marketLabel=(m,s)=>m==="match_result"?({home:"Home",draw:"Draw",away:"Away
 // Open Bets owns the ticket history, settlement status, cashout state and win/loss display.
 export default function MyBetsPage({onRefresh}){
   const {user,setBalance,reload}=useAuth();
-  const [selections,setSelections]=useState([]),[loadedTicket,setLoadedTicket]=useState(null),[stake,setStake]=useState(""),[code,setCode]=useState(""),[busy,setBusy]=useState(false),[panelOpen,setPanelOpen]=useState(false);
+  const [selections,setSelections]=useState([]),[loadedTicket,setLoadedTicket]=useState(null),[stake,setStake]=useState(""),[code,setCode]=useState(""),[busy,setBusy]=useState(false),[panelOpen,setPanelOpen]=useState(false),[showMinimumStakeNotice,setShowMinimumStakeNotice]=useState(false);
   const totalOdds=useMemo(()=>selections.reduce((a,x)=>a*Number(x.odds||1),1),[selections]);
   const potential=Number(stake||0)*totalOdds;
 
@@ -58,7 +58,7 @@ export default function MyBetsPage({onRefresh}){
   const placeTicket=async()=>{
     if(!selections.length) return toast.error("Load or select a ticket first");
     const amount=Number(stake||0);
-    if(amount<=0) return toast.error("Enter a valid stake");
+    if(amount<200){setShowMinimumStakeNotice(true);return;}
     setBusy(true);
     try{
       let booking=code.trim();
@@ -79,6 +79,14 @@ export default function MyBetsPage({onRefresh}){
   };
 
   return <section className="space-y-5">
+    {showMinimumStakeNotice&&<div className="fixed inset-0 z-[110] bg-black/65 backdrop-blur-sm flex items-center justify-center p-5" role="alertdialog" aria-modal="true" aria-label="Minimum stake required">
+      <div className="w-full max-w-sm rounded-2xl bg-white text-[#242424] p-5 text-center shadow-2xl">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B68B00]">Minimum Amount</div>
+        <h2 className="mt-2 text-lg font-black">Minimum stake is GHS 200.00.</h2>
+        <p className="mt-2 text-sm text-[#666]">Please enter a stake of GHS 200.00 or more to place your bet.</p>
+        <button type="button" onClick={()=>setShowMinimumStakeNotice(false)} className="mt-5 w-full rounded-xl bg-[#079B4B] py-3 font-black text-white">OK</button>
+      </div>
+    </div>}
     <div className="nx-card border-2 border-[#00E5FF]/50 shadow-xl">
       <button type="button" onClick={()=>setPanelOpen(v=>!v)} aria-expanded={panelOpen} className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-white/[0.03] transition-colors">
         <div>

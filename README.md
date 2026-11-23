@@ -71,3 +71,14 @@ npm start
 - `frontend/.env.example` — backend URL configuration.
 
 The frontend cashier UI is intentionally left visually unchanged.
+
+NexusBet frontend update
+
+Copy the included files into the matching paths in your frontend project.
+- Minimum stake is now GHS 200.00 in both SportsPage and MyBetsPage.
+- The minimum-stake notice remains hidden until Place Bet is attempted below the minimum.
+- First-deposit bonus display fallback is GHS 50.
+- Welcome bonus banner now advertises GHC50.
+- Existing HT event controls and display behavior are retained in SportsPage/AdminPage.
+
+Deploy the matching backend update as well.

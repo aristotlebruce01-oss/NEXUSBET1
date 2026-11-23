@@ -70,7 +70,7 @@ export default function CashierPage({ focusSection = null } = {}) {
   }, [load]);
 
   const bonusAvailable = Boolean(status?.first_deposit_bonus_available);
-  const bonusCap = Number(status?.first_deposit_bonus_cap || 100);
+  const bonusCap = Number(status?.first_deposit_bonus_cap || 50);
   const depositAmount = Number(depAmt || 0);
   const previewBonus = bonusAvailable && depositAmount >= Number(status?.min_deposit ?? 30)
     ? Math.min(depositAmount, bonusCap)

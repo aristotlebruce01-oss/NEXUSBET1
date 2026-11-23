@@ -19,50 +19,57 @@ const doubleChanceOdds = (homeOdd, drawOdd, awayOdd) => {
   const price = (probability) => Math.max(1.01, Number((margin / probability).toFixed(2)));
   return { homeDraw: price(probs[0] + probs[1]), awayDraw: price(probs[1] + probs[2]) };
 };
-const MARKET_ODDS = {
-  "0-0": 6,
-  "1-0": 5.5,
-  "0-1": 6.5,
-  "1-1": 5,
-  "2-0": 7,
-  "0-2": 8,
-  "2-1": 8,
-  "1-2": 8.5,
-  "2-2": 10,
-  "3-0": 11,
-  "0-3": 13,
-  "3-1": 12,
-  "1-3": 14,
-  "3-2": 16,
-  "2-3": 17,
-  "3-3": 24,
-  "4-0": 18,
-  "0-4": 22,
-  "4-1": 20,
-  "1-4": 26,
-  "4-2": 24,
-  "2-4": 30,
-  "4-3": 32,
-  "3-4": 36,
-  "4-4": 55,
-
-  "over_0.5": 1.15,
-  "under_0.5": 5.5,
-  "over_1.5": 1.48,
-  "under_1.5": 2.55,
-  "over_2.5": 2.05,
-  "under_2.5": 1.78,
-  "over_3.5": 3.05,
-  "under_3.5": 1.36,
-  "over_4.5": 4.4,
-  "under_4.5": 1.18,
-  "over_5.5": 6.5,
-  "under_5.5": 1.1,
-
-  yes: 1.72,
-  no: 1.92,
-  win1: 7,
-  win2: 7.5
+// Fixture-specific market pricing. Prices are deterministic for each event so
+// they remain stable between refreshes, but reflect the match's own 1X2 odds.
+const poisson = (k, lambda) => Math.exp(-lambda) * Math.pow(lambda, k) / (k === 0 ? 1 : Array.from({length:k},(_,i)=>i+1).reduce((a,b)=>a*b,1));
+const eventSeed = (event) => {
+  const value = String(event?.id ?? `${event?.home||''}-${event?.away||''}-${event?.start_time||''}`);
+  let h = 2166136261;
+  for (let i=0;i<value.length;i++) { h ^= value.charCodeAt(i); h = Math.imul(h,16777619); }
+  return (h >>> 0) / 4294967295;
+};
+const fixtureLambdas = (event) => {
+  const odds = ['home','draw','away'].map(k => Number(event?.odds?.[k] ?? event?.[`odds_${k}`] ?? ({home:1.85,draw:3.4,away:4.2}[k])));
+  const implied = odds.map(v => 1 / Math.max(1.01, Number.isFinite(v) ? v : 3));
+  const total = implied.reduce((a,b)=>a+b,0) || 1;
+  const [ph,,pa] = implied.map(v=>v/total);
+  const balance = Math.max(0.25, Math.min(0.75, ph/(ph+pa || 1)));
+  const totalGoals = 2.35 + eventSeed(event)*0.55;
+  return { home: totalGoals*balance, away: totalGoals*(1-balance) };
+};
+const fixtureMarketOdds = (event, market, selection) => {
+  const {home,away} = fixtureLambdas(event);
+  const seed = eventSeed(event);
+  const variation = 0.985 + seed*0.03;
+  const margin = 1.08;
+  const price = p => Number(Math.max(1.01, margin / Math.max(0.0005,p) * variation).toFixed(2));
+  if (market === 'correct_score') {
+    const parts = String(selection).split('-').map(Number);
+    if (parts.length!==2 || parts.some(n=>!Number.isInteger(n)||n<0||n>8)) return 0;
+    return price(poisson(parts[0],home)*poisson(parts[1],away));
+  }
+  if (market === 'both_teams_score') {
+    const yes = (1-Math.exp(-home))*(1-Math.exp(-away));
+    return price(selection === 'yes' ? yes : 1-yes);
+  }
+  if (market === 'goals_over_under') {
+    const total = home + away;
+    const line = Number(String(selection).split('_')[1]);
+    if (!Number.isFinite(line)) return 0;
+    let under = 0;
+    const maxGoals = Math.max(0, Math.floor(line));
+    for (let h=0;h<=maxGoals;h++) for (let a=0;a<=maxGoals-h;a++) under += poisson(h,home)*poisson(a,away);
+    const isOver = String(selection).startsWith('over_');
+    return price(isOver ? 1-under : under);
+  }
+  if (market === 'ht_draw_ft') {
+    const [h,d,a] = ['home','draw','away'].map(k=>1/Math.max(1.01,Number(event?.odds?.[k] ?? event?.[`odds_${k}`] ?? ({home:1.85,draw:3.4,away:4.2}[k]))));
+    const sum=h+d+a || 1;
+    const full = selection==='home'||selection==='win1' ? h/sum : selection==='away'||selection==='win2' ? a/sum : d/sum;
+    const htDraw = 0.24 + seed*0.08;
+    return price(htDraw*full);
+  }
+  return 0;
 };
 const marketLabel = (m,s) => m === "match_result" ? ({home:"Home",draw:"Draw",away:"Away"}[s]||s) : m === "double_chance" ? (s === "dc_team_1" ? "DC Team 1 / Draw" : "DC Team 2 / Draw") : m === "correct_score" ? `Correct score ${s}` : m === "goals_over_under" ? (s.startsWith("over_") ? `Over ${s.slice(5)}` : `Under ${s.slice(6)}`) : m === "both_teams_score" ? (s === "yes" ? "GG Yes" : "NG No") : `HT Draw / ${s === "win1" ? "Win 1" : "Win 2"}`;
 
@@ -78,7 +85,7 @@ export default function SportsPage({ activeSection="home", teamSearch="" }) {
   const { user, setBalance, reload } = useAuth();
   const [events,setEvents]=useState([]), [virtual,setVirtual]=useState([]), [loading,setLoading]=useState(true), [filter,setFilter]=useState("all"), [now,setNow]=useState(Date.now());
   const [leagues,setLeagues]=useState([]), [leagueOpen,setLeagueOpen]=useState(null);
-  const [expanded,setExpanded]=useState({}), [selections,setSelections]=useState([]), [stake,setStake]=useState(""), [bookingCode,setBookingCode]=useState(""), [loadedTicket,setLoadedTicket]=useState(null), [busy,setBusy]=useState(false), [placedBetSummary,setPlacedBetSummary]=useState(null), [myBetOpen,setMyBetOpen]=useState(false), [myBetPosition,setMyBetPosition]=useState(null);
+  const [expanded,setExpanded]=useState({}), [selections,setSelections]=useState([]), [stake,setStake]=useState(""), [bookingCode,setBookingCode]=useState(""), [loadedTicket,setLoadedTicket]=useState(null), [busy,setBusy]=useState(false), [placedBetSummary,setPlacedBetSummary]=useState(null), [showMinimumStakeNotice,setShowMinimumStakeNotice]=useState(false), [myBetOpen,setMyBetOpen]=useState(false), [myBetPosition,setMyBetPosition]=useState(null);
   const myBetDragRef = useRef(null);
   const suppressMyBetClickRef = useRef(false);
   const ticketStatusesRef = useRef(null);
@@ -107,7 +114,7 @@ export default function SportsPage({ activeSection="home", teamSearch="" }) {
   const all=[...events,...virtual.map(x=>({...x,sport:"Virtual Football"}))];
   const sports=useMemo(()=>["all",...Array.from(new Set(["Football","Basketball","Tennis",...events.map(e=>e.sport).filter(Boolean)]))],[events]);
   const normalized=activeSection==="live-score-update"?"live":activeSection;
-  const isLive=e=>String(e.status||"").toLowerCase().includes("live")||String(e.phase||"").toLowerCase().includes("live")||e.is_live===true;
+  const isLive=e=>["live","halftime"].includes(String(e.status||"").toLowerCase())||["live","halftime"].includes(String(e.phase||"").toLowerCase())||e.is_live===true;
   const todayKey=new Date().toISOString().slice(0,10); const isToday=e=>String(e.start_time||e.kickoff_at||e.kickoff||e.created_at||"").slice(0,10)===todayKey;
   const sectionEvents=normalized==="live"?events.filter(isLive):normalized==="today-matches"?events.filter(e=>isToday(e)&&String(e.status||"").toLowerCase()!=="finished"):events.filter(e=>String(e.status||"").toLowerCase()!=="finished");
   const searchTerm=String(teamSearch||"").trim().toLowerCase();
@@ -116,19 +123,19 @@ export default function SportsPage({ activeSection="home", teamSearch="" }) {
   const visibleVirtual=(normalized==="live"?virtual.filter(isLive):virtual.filter(e=>String(e.status||"").toLowerCase()!=="finished")).filter(matchesTeamSearch);
   const toggleSelection=(event,market,selection)=>{
     if (String(event.phase||event.status||"").toLowerCase().includes("live") || event.is_live===true) return toast.error("Odds are locked while the match is live");
-    const odds=market==="match_result"?pickOdds(event,selection):MARKET_ODDS[selection]||0;
+    const odds=market==="match_result"?pickOdds(event,selection):fixtureMarketOdds(event,market,selection);
     if(!odds)return toast.error("Odds unavailable for this selection");
     setLoadedTicket(null); setSelections(cur=>{const other=cur.filter(x=>x.event_id!==event.id);const existing=cur.find(x=>x.event_id===event.id);return existing?.market===market&&existing?.selection===selection?other:[...other,{event_id:event.id,market,selection,odds,home:event.home,away:event.away,league:event.league}]});
   };
   const calculatedSelectionOdds=selections.reduce((a,x)=>a*Number(x.odds||1),1); const totalOdds=(loadedTicket?.booking_code===bookingCode.trim().toUpperCase() && Number(loadedTicket?.total_odds)>0) ? Number(loadedTicket.total_odds) : calculatedSelectionOdds; const amount=Number(stake||0); const potential=amount*totalOdds;
   const createBooking=async()=>{if(!selections.length)return toast.error("Select at least one match");setBusy(true);try{const r=await api.post("/tickets",{selections:selections.map(({event_id,market,selection})=>({event_id,market,selection})),stake:0});setBookingCode(r.data.ticket.booking_code);setLoadedTicket(r.data.ticket);toast.success(`Booking code ${r.data.ticket.booking_code} generated`)}catch(e){toast.error(formatApiErrorDetail(e?.response?.data?.detail)||"Could not generate booking code")}finally{setBusy(false)}};
-  const placeTicket=async()=>{if(!selections.length&&!loadedTicket)return toast.error("Select matches or load a booking code");if(amount<=0)return toast.error("Enter a valid stake");setBusy(true);try{let code=bookingCode;if(!code){const r=await api.post("/tickets",{selections:selections.map(({event_id,market,selection})=>({event_id,market,selection})),stake:0});code=r.data.ticket.booking_code;setBookingCode(code)}const r=await api.post(`/tickets/${encodeURIComponent(code)}/place`,{stake:amount});const placed=r.data.ticket;setBalance(r.data.balance);setLoadedTicket(placed);setSelections([]);setStake("");setPlacedBetSummary({booking_code:placed.booking_code,verify_code:placed.verify_code || placed.booking_code,stake:Number(placed.stake||amount),potential_win:Number(placed.potential_win||0),bet_type:placed.bet_type||((placed.selections||[]).length>1?"Multiple":"Singles")});await reload()}catch(e){const detail=formatApiErrorDetail(e?.response?.data?.detail)||"Bet placement failed";toast.error(detail);if(String(detail).toLowerCase().includes("deposit"))toast.info("Go to Wallet /Deposit to fund your wallet")}finally{setBusy(false)}};
+  const placeTicket=async()=>{if(!selections.length&&!loadedTicket)return toast.error("Select matches or load a booking code");if(amount<200){setShowMinimumStakeNotice(true);return;}setBusy(true);try{let code=bookingCode;if(!code){const r=await api.post("/tickets",{selections:selections.map(({event_id,market,selection})=>({event_id,market,selection})),stake:0});code=r.data.ticket.booking_code;setBookingCode(code)}const r=await api.post(`/tickets/${encodeURIComponent(code)}/place`,{stake:amount});const placed=r.data.ticket;setBalance(r.data.balance);setLoadedTicket(placed);setSelections([]);setStake("");setPlacedBetSummary({booking_code:placed.booking_code,verify_code:placed.verify_code || placed.booking_code,stake:Number(placed.stake||amount),potential_win:Number(placed.potential_win||0),bet_type:placed.bet_type||((placed.selections||[]).length>1?"Multiple":"Singles")});await reload()}catch(e){const detail=formatApiErrorDetail(e?.response?.data?.detail)||"Bet placement failed";toast.error(detail);if(String(detail).toLowerCase().includes("deposit"))toast.info("Go to Wallet /Deposit to fund your wallet")}finally{setBusy(false)}};
   const loadCode=async()=>{if(!bookingCode.trim())return;try{const r=await api.get(`/tickets/verify/${encodeURIComponent(bookingCode.trim())}`);const ticket=r.data.ticket;setLoadedTicket(ticket);setSelections((ticket.selections||[]).map(s=>({...s,odds:Number(s.odds||0)})));setStake(ticket.stake>0?String(ticket.stake):"");toast.success(`Booking code loaded into My Bet · ${Number(ticket.total_odds||1).toFixed(2)} odds`) }catch(e){toast.error(formatApiErrorDetail(e?.response?.data?.detail)||"Booking code not found")}};
   const Market=({event,market,selection,label,odds})=>{const locked=isLive(event);return <button type="button" disabled={locked} aria-disabled={locked} title={locked?"Odds locked for live matches":"Select odds"} onClick={()=>toggleSelection(event,market,selection)} className={`rounded-lg p-2 text-center text-xs border ${locked?"opacity-40 cursor-not-allowed bg-black/40 border-white/5":""} ${selections.find(x=>x.event_id===event.id)?.selection===selection?"bg-[#00E5FF] text-black border-[#00E5FF]":"bg-[#221c46] border-white/10"}`}><div className="opacity-80">{label}</div><b>{locked?"LOCKED":Number(odds).toFixed(2)}</b></button>};
   const Card=({event,isVirtual=false})=>{const sc=scoreOf(event);const odds=event.odds||{};const validOdd=(value,fallback)=>{const n=Number(value);return Number.isFinite(n)&&n>1?n:fallback;};const home=validOdd(odds.home ?? pickOdds(event,"home"),1.85),draw=validOdd(odds.draw ?? pickOdds(event,"draw"),3.4),away=validOdd(odds.away ?? pickOdds(event,"away"),3.75);const dcOdds=doubleChanceOdds(home,draw,away);const liveNow=isLive(event);const Logo=isVirtual?VirtualTeamLogo:TeamLogo;return <div className="nx-card p-4">
-    <div className="flex items-center justify-between"><span className="text-[10px] font-black uppercase tracking-wider text-[#00E5FF]">{event.sport||"Football"}</span><span className="text-[10px] text-[#A29DBE]"><Radio size={11} className="inline mr-1"/>{event.phase||event.status||"scheduled"}{event.status==="live"?` · ${event.minute??0}'`:""}</span></div>
-    <button type="button" className="w-full text-left mt-3" onClick={()=>setExpanded(c=>({...c,[event.id]:!c[event.id]}))}><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2"><div className="flex items-center gap-2"><Logo name={event.home} logoUrl={isVirtual?undefined:event.home_logo_url} size={38}/><span className="font-semibold text-sm">{event.home}</span></div><span className="text-[#FFD700] font-black">{event.status==="live" ? `${sc.home}:${sc.away}` : "VS"}</span><div className="flex items-center justify-end gap-2"><span className="font-semibold text-sm text-right">{event.away}</span><Logo name={event.away} logoUrl={isVirtual?undefined:event.away_logo_url} size={38}/></div></div><p className="text-xs text-[#6E688D] mt-2">{event.league||"League"} · {event.status==="live" ? `${event.minute??0}' live` : event.kickoff_at ? new Date(event.kickoff_at).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}) : "Scheduled"}</p></button>
-    {liveNow?<div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-center text-xs font-black tracking-wide text-amber-300"><Shield size={14} className="inline mr-1"/> LIVE SCORE UPDATE · ODDS LOCKED</div>:<div className={`grid ${["basketball","tennis"].includes(String(event.sport||"").toLowerCase())?"grid-cols-2":"grid-cols-3"} gap-2 mt-3`}><Market event={event} market="match_result" selection="home" label={["basketball","tennis"].includes(String(event.sport||"").toLowerCase())?"Home Win":"Home"} odds={home}/>{!["basketball","tennis"].includes(String(event.sport||"").toLowerCase())&&<Market event={event} market="match_result" selection="draw" label="Draw" odds={draw}/>}<Market event={event} market="match_result" selection="away" label={["basketball","tennis"].includes(String(event.sport||"").toLowerCase())?"Away Win":"Away"} odds={away}/></div>}
+    <div className="flex items-center justify-between"><span className="text-[10px] font-black uppercase tracking-wider text-[#00E5FF]">{event.sport||"Football"}</span><span className="text-[10px] text-[#A29DBE]"><Radio size={11} className="inline mr-1"/>{event.status==="halftime"?"HT":(event.phase||event.status||"scheduled")}{event.status==="live"?` · ${event.minute??0}'`:""}</span></div>
+    <button type="button" className="w-full text-left mt-3" onClick={()=>setExpanded(c=>({...c,[event.id]:!c[event.id]}))}><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2"><div className="flex items-center gap-2"><Logo name={event.home} logoUrl={isVirtual?undefined:event.home_logo_url} size={38}/><span className="font-semibold text-sm">{event.home}</span></div><span className="text-[#FFD700] font-black">{["live","halftime"].includes(String(event.status||"").toLowerCase()) ? `${sc.home}:${sc.away}` : "VS"}</span><div className="flex items-center justify-end gap-2"><span className="font-semibold text-sm text-right">{event.away}</span><Logo name={event.away} logoUrl={isVirtual?undefined:event.away_logo_url} size={38}/></div></div><p className="text-xs text-[#6E688D] mt-2">{event.league||"League"} · {event.status==="halftime" ? "Half Time" : event.status==="live" ? `${event.minute??0}' live` : event.kickoff_at ? new Date(event.kickoff_at).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}) : "Scheduled"}</p></button>
+    {liveNow?<div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-center text-xs font-black tracking-wide text-amber-300"><Shield size={14} className="inline mr-1"/> {event.status==="halftime"?"HALF TIME · ODDS LOCKED":"LIVE SCORE UPDATE · ODDS LOCKED"}</div>:<div className={`grid ${["basketball","tennis"].includes(String(event.sport||"").toLowerCase())?"grid-cols-2":"grid-cols-3"} gap-2 mt-3`}><Market event={event} market="match_result" selection="home" label={["basketball","tennis"].includes(String(event.sport||"").toLowerCase())?"Home Win":"Home"} odds={home}/>{!["basketball","tennis"].includes(String(event.sport||"").toLowerCase())&&<Market event={event} market="match_result" selection="draw" label="Draw" odds={draw}/>}<Market event={event} market="match_result" selection="away" label={["basketball","tennis"].includes(String(event.sport||"").toLowerCase())?"Away Win":"Away"} odds={away}/></div>}
     {!liveNow&&expanded[event.id]&&!["basketball","tennis"].includes(String(event.sport||"").toLowerCase())&&<div className="mt-4 border-t border-white/10 pt-4 space-y-4"><div><div className="text-xs font-black uppercase text-[#00E5FF] mb-2">Double Chance</div><div className="grid grid-cols-2 gap-2"><Market event={event} market="double_chance" selection="dc_team_1" label={`${event.home} / Draw`} odds={dcOdds.homeDraw}/><Market event={event} market="double_chance" selection="dc_team_2" label={`${event.away} / Draw`} odds={dcOdds.awayDraw}/></div></div><div><div className="text-xs font-black uppercase text-[#00E5FF] mb-2">Over / Under Goals</div><div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{["0.5","1.5","2.5","3.5","4.5","5.5"].flatMap(line=>[<Market key={`o${line}`} event={event} market="goals_over_under" selection={`over_${line}`} label={`Over ${line}`} odds={MARKET_ODDS[`over_${line}`]}/>,<Market key={`u${line}`} event={event} market="goals_over_under" selection={`under_${line}`} label={`Under ${line}`} odds={MARKET_ODDS[`under_${line}`]}/>])}</div></div><div><div className="text-xs font-black uppercase text-[#00E5FF] mb-2">GG / NG</div><div className="grid grid-cols-2 gap-2"><Market event={event} market="both_teams_score" selection="yes" label="GG Yes" odds={1.72}/><Market event={event} market="both_teams_score" selection="no" label="NG No" odds={1.92}/></div></div><div><div className="text-xs font-black uppercase text-[#00E5FF] mb-2">Correct Score</div><div className="grid grid-cols-3 sm:grid-cols-4 gap-2">{Object.keys(MARKET_ODDS).filter(s=>/^\d-\d$/.test(s)).map(s=><Market key={s} event={event} market="correct_score" selection={s} label={s} odds={MARKET_ODDS[s]}/>)}</div></div><div><div className="text-xs font-black uppercase text-[#00E5FF] mb-2">HT / FT</div><div className="grid grid-cols-2 gap-2"><Market event={event} market="ht_draw_ft" selection="win1" label="HT Draw / Win 1" odds={7}/><Market event={event} market="ht_draw_ft" selection="win2" label="HT Draw / Win 2" odds={7.5}/></div></div></div>}
     <div className="mt-3 flex justify-between text-[11px] text-[#A29DBE]"><span><Clock3 size={12} className="inline mr-1"/>{event.status||"scheduled"}</span>{!liveNow&&<button onClick={()=>setExpanded(c=>({...c,[event.id]:!c[event.id]}))} className="text-[#00E5FF]">{expanded[event.id]?<><ChevronUp size={13} className="inline"/> Hide markets</>:<><ChevronDown size={13} className="inline"/> More markets</>}</button>}</div>
   </div>};
@@ -181,6 +188,14 @@ export default function SportsPage({ activeSection="home", teamSearch="" }) {
         </>}
       </div>
     </div>
+      {showMinimumStakeNotice&&<div className="fixed inset-0 z-[110] bg-black/65 backdrop-blur-sm flex items-center justify-center p-5" role="alertdialog" aria-modal="true" aria-label="Minimum stake required">
+        <div className="w-full max-w-sm rounded-2xl bg-white text-[#242424] p-5 text-center shadow-2xl">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#B68B00]">Minimum Amount</div>
+          <h2 className="mt-2 text-lg font-black">Minimum stake is GHS 200.00.</h2>
+          <p className="mt-2 text-sm text-[#666]">Please enter a stake of GHS 200.00 or more to place your bet.</p>
+          <button type="button" onClick={()=>setShowMinimumStakeNotice(false)} className="mt-5 w-full rounded-xl bg-[#079B4B] py-3 font-black text-white">OK</button>
+        </div>
+      </div>}
       {placedBetSummary&&<div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-5" role="dialog" aria-modal="true" aria-label="Bet placed successfully">
         <div className="w-full sm:max-w-xl bg-white text-[#26232F] rounded-t-[28px] sm:rounded-[28px] shadow-2xl overflow-hidden">
           <div className="relative px-6 pt-8 pb-5 sm:px-8 sm:pt-10 text-center">
