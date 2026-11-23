@@ -82,3 +82,21 @@ Copy the included files into the matching paths in your frontend project.
 - Existing HT event controls and display behavior are retained in SportsPage/AdminPage.
 
 Deploy the matching backend update as well.
+
+NexusBet More Markets black-screen fix
+
+Replace this file in your frontend project:
+frontend/src/pages/SportsPage.jsx
+
+Root cause found:
+The expanded More Markets JSX referenced MARKET_ODDS, but no MARKET_ODDS variable was defined in this file. Expanding the section could therefore throw a ReferenceError and crash the React screen.
+
+Fixes:
+- Removed all references to the undefined MARKET_ODDS variable.
+- Correct Score options now calculate prices through fixtureMarketOdds for the selected fixture.
+- Over/Under, GG/NG, and HT/FT prices now use the fixture-specific pricing function instead of fixed values.
+- Existing GHS 200 minimum stake and halftime card behavior in this SportsPage file are retained.
+
+Validation:
+- JSX syntax parsed successfully with the project's Babel parser.a
+- This is a source-level fix; browser/device regression testing and production deployment are still required.
