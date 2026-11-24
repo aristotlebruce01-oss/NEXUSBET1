@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const slides = [
-  { src: "/welcome-bonus-banner.jpeg", alt: "Welcome bonus — GHC50 on your first deposit" },
+  { src: "/welcome-bonus-banner.jpeg", alt: "Welcome bonus — GH₵50 on your first deposit" },
   { src: "/champion-banner.jpeg", alt: "Bet like a champion — Boosted odds every day" },
   { src: "/live-now-banner.jpeg", alt: "Live now — Bet in play, cash out fast" },
   { src: "/football-every-day-banner.jpeg", alt: "Football every day — Back greatness, bet on the world's game" },

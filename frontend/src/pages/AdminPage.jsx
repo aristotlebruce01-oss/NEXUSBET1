@@ -295,12 +295,24 @@ export default function AdminPage(){
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <DemoWalletPanel user={user}/>
       {isAdmin&&<CashierSettings/>}
-      <ReferralPanel user={user}/>
+      <details className="nx-card p-4 lg:col-span-2" open={false}>
+        <summary className="cursor-pointer list-none flex items-center justify-between gap-3 font-display font-bold text-lg">
+          <span className="flex items-center gap-2"><Link2 size={19} className="text-[#00E5FF}"/> Referral & Commission Management</span>
+          <span className="text-xs text-[#A29DBE] font-normal">Today's · All-time · Dated ledger</span>
+        </summary>
+        <div className="mt-4"><ReferralPanel user={user}/></div>
+      </details>
       <PayoutAccountsPanel canEdit={isAdmin}/>
       {isSuper&&<DepositCleanupPanel/>}
       {(isAdmin||user?.permissions?.includes('transactions.review'))&&<TransactionReview/>}
       {(isAdmin||user?.permissions?.includes('reports.view'))&&<ReportsPanel/>}
-      {(isAdmin||user?.permissions?.includes('users.view'))&&<GlobalUsersPanel/>}
+      {(isAdmin||user?.permissions?.includes('users.view'))&&<details className="nx-card p-4 lg:col-span-2" open={false}>
+        <summary className="cursor-pointer list-none flex items-center justify-between gap-3 font-display font-bold text-lg">
+          <span className="flex items-center gap-2"><Users size={19} className="text-[#00E5FF}"/> Global User Profiles</span>
+          <span className="text-xs text-[#A29DBE] font-normal">View users · contacts · referrals · balances · roles</span>
+        </summary>
+        <div className="mt-4"><GlobalUsersPanel/></div>
+      </details>}
       {isAdmin&&<StaffManager user={user}/>} 
       {isAdmin&&<PermissionManager/>}
     </div>
