@@ -26,6 +26,8 @@ export default function CashierPage({ focusSection = null } = {}) {
   const [depAmt, setDepAmt] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
   const [pendingPayment, setPendingPayment] = useState(null);
+  const [depositOtp, setDepositOtp] = useState("");
+  const [otpRequired, setOtpRequired] = useState(false);
   const [wdAmt, setWdAmt] = useState("");
   const [wdPhone, setWdPhone] = useState("");
   const [destination, setDestination] = useState("");
@@ -100,8 +102,9 @@ export default function CashierPage({ focusSection = null } = {}) {
     setBusy(true);
     try {
       const { data } = await api.post("/wallet/deposit", { amount, method: depositMethod, phone_number: depositPhone.trim() });
-      setPendingPayment({ reference: data.reference, message: data.message || "Approve the payment prompt on your phone." });
-      toast.success("Payment request sent to your phone");
+      setPendingPayment({ reference: data.reference, message: data.message || "Approve the Moolre payment prompt on your phone." });
+      setOtpRequired(Boolean(data.requires_otp || data.next_action === "submit_otp"));
+      toast.success(data.requires_otp ? "Enter the SMS verification code" : "Payment request sent to your phone");
       await load();
     } catch (e) {
       toast.error(formatApiErrorDetail(e?.response?.data?.detail) || "Could not start payment");
@@ -115,7 +118,7 @@ export default function CashierPage({ focusSection = null } = {}) {
       const { data } = await api.get(`/wallet/deposit/verify/${encodeURIComponent(pendingPayment.reference)}`);
       if (data.status === "credited") {
         toast.success("Payment confirmed. Your wallet has been credited.");
-        setPendingPayment(null); setDepAmt(""); setDepositPhone("");
+        setPendingPayment(null); setOtpRequired(false); setDepositOtp(""); setDepAmt(""); setDepositPhone("");
         await Promise.all([load(), reload()]);
       } else if (data.status === "failed") {
         toast.error(data.message || "Payment failed"); setPendingPayment(null); await load();
@@ -124,6 +127,21 @@ export default function CashierPage({ focusSection = null } = {}) {
       }
     } catch (e) { toast.error(formatApiErrorDetail(e?.response?.data?.detail) || "Could not verify payment"); }
     finally { setBusy(false); }
+  };
+
+  const submitDepositOtp = async () => {
+    if (!pendingPayment?.reference) return;
+    if (!depositOtp.trim()) return toast.error("Enter the verification code sent by SMS");
+    setBusy(true);
+    try {
+      const { data } = await api.post("/wallet/deposit/otp", { reference: pendingPayment.reference, otp: depositOtp.trim() });
+      setOtpRequired(false);
+      setDepositOtp("");
+      setPendingPayment((current) => current ? { ...current, message: data.message || "Code submitted. Approve the prompt if requested, then check payment." } : current);
+      toast.success("Verification code submitted");
+    } catch (e) {
+      toast.error(formatApiErrorDetail(e?.response?.data?.detail) || "Could not submit verification code");
+    } finally { setBusy(false); }
   };
 
   const withdraw = async () => {
@@ -211,7 +229,7 @@ export default function CashierPage({ focusSection = null } = {}) {
           {bonusAvailable && depositAmount >= Number(status?.min_deposit ?? 30) && <div className="mt-3 rounded-xl bg-[#00FF87]/10 border border-[#00FF87]/20 p-3 text-sm"><div className="flex justify-between"><span>Deposit</span><b>{fmt(depositAmount)}</b></div><div className="flex justify-between text-[#00FF87] mt-1"><span>First-deposit bonus (if eligible)</span><b>+{fmt(previewBonus)}</b></div></div>}
           <label className="text-xs text-[#A29DBE] block mt-3">Mobile money phone number</label>
           <input inputMode="tel" autoComplete="tel" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3 text-base" placeholder="0241234567" />
-          {pendingPayment ? <div className="mt-4 rounded-xl border border-[#FFD700]/30 bg-[#FFD700]/10 p-4"><div className="font-bold text-[#FFD700]">Payment awaiting approval</div><p className="text-sm mt-2 text-white/80">{pendingPayment.message}</p><p className="text-[11px] text-[#A29DBE] mt-2 break-all">Reference: {pendingPayment.reference}</p><button type="button" disabled={busy} onClick={checkPayment} className="nx-btn-primary w-full mt-3 py-3 flex items-center justify-center gap-2"><RefreshCw size={16}/>{busy ? "Checking..." : "I've approved — Check payment"}</button></div> : <button disabled={busy || !selectedDeposit || !paymentMethods.length} onClick={deposit} className="nx-btn-primary w-full mt-4 py-3 flex items-center justify-center gap-2"><Smartphone size={17}/>{busy ? "Starting secure payment..." : `Pay with ${selectedDeposit?.label || "Mobile Money"}`}</button>}
+          {pendingPayment ? <div className="mt-4 rounded-xl border border-[#FFD700]/30 bg-[#FFD700]/10 p-4"><div className="font-bold text-[#FFD700]">Payment awaiting approval</div><p className="text-sm mt-2 text-white/80">{pendingPayment.message}</p><p className="text-[11px] text-[#A29DBE] mt-2 break-all">Reference: {pendingPayment.reference}</p>{otpRequired && <div className="mt-3"><label className="text-xs text-[#A29DBE] block">SMS verification code</label><input inputMode="numeric" autoComplete="one-time-code" value={depositOtp} onChange={(e) => setDepositOtp(e.target.value)} className="mt-1 w-full rounded-xl bg-[#221c46] border border-white/10 px-3 py-3 text-base" placeholder="Enter OTP"/><button type="button" disabled={busy || !depositOtp.trim()} onClick={submitDepositOtp} className="nx-btn-primary w-full mt-2 py-3">{busy ? "Submitting..." : "Submit verification code"}</button></div>}<button type="button" disabled={busy} onClick={checkPayment} className="nx-btn-primary w-full mt-3 py-3 flex items-center justify-center gap-2"><RefreshCw size={16}/>{busy ? "Checking..." : "I've approved — Check payment"}</button></div> : <button disabled={busy || !selectedDeposit || !paymentMethods.length} onClick={deposit} className="nx-btn-primary w-full mt-4 py-3 flex items-center justify-center gap-2"><Smartphone size={17}/>{busy ? "Starting secure payment..." : `Pay with ${selectedDeposit?.label || "Mobile Money"}`}</button>}
           <p className="text-[11px] text-[#6E688D] mt-3">Your wallet is credited only after the payment provider confirms the transaction. Never share your MoMo PIN or OTP with anyone.</p>
         </div>
 
